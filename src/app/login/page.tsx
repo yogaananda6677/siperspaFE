@@ -19,8 +19,8 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      const data = await login(form);
-
+      const data = await login({ username: form.username, password: form.password });
+      
       // ✅ Simpan token & user ke localStorage
       localStorage.setItem("token", data.token);
       localStorage.setItem("user", JSON.stringify(data.user));
