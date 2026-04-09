@@ -9,6 +9,7 @@ import { ReceiptModal } from "./components/ReceiptModal";
 import { Toast } from "./components/Toast";
 import { useMonitoringPage } from "./hooks/useMonitoringPage";
 
+
 export default function MonitoringPage() {
   const state = useMonitoringPage();
 

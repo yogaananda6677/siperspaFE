@@ -269,6 +269,7 @@ export type TransaksiData = {
   detailProduk?: TransaksiDetailProduk[];
   detail_sewa?: TransaksiDetailSewa[];
   detail_produk?: TransaksiDetailProduk[];
+  pembayaran?: MonitoringPembayaran | null;
 };
 
 export type TransaksiResponse = {
@@ -737,4 +738,33 @@ export async function bayarTransaksi(
 
   const result = await handleResponse<TransaksiResponse>(res);
   return result.data;
+}
+
+
+export type GetTransaksiResponse = {
+  data: TransaksiData[];
+  current_page?: number;
+  last_page?: number;
+  per_page?: number;
+  total?: number;
+};
+
+export async function getTransaksis(params?: {
+  page?: number;
+  status?: string;
+  tanggal?: string;
+  user_id?: number;
+}): Promise<GetTransaksiResponse> {
+  const url = new URL(`${BASE_URL}/transaksi`);
+
+  if (params?.page) url.searchParams.set("page", String(params.page));
+  if (params?.status) url.searchParams.set("status", params.status);
+  if (params?.tanggal) url.searchParams.set("tanggal", params.tanggal);
+  if (params?.user_id) url.searchParams.set("user_id", String(params.user_id));
+
+  const res = await fetch(url.toString(), {
+    headers: authHeaders(),
+  });
+
+  return handleResponse<GetTransaksiResponse>(res);
 }

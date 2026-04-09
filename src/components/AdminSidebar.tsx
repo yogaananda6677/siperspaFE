@@ -33,6 +33,27 @@ const navItems = [
       </svg>
     ),
   },
+   {
+    label: "Kelola Transaksi",
+    href: "/admin/transaksi",
+    icon: (
+      <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24">
+        <circle cx="9" cy="7" r="4" />
+        <path d="M2 21c0-4 3.1-7 7-7s7 3 7 7" strokeLinecap="round" />
+        <circle cx="17" cy="9" r="3" />
+        <path d="M20.5 20.5c0-2-1.6-3.5-3.5-3.5" strokeLinecap="round" />
+      </svg>
+    ),
+  },
+   {
+    label: "Pembayaran",
+    href: "/admin/pembayaran",
+    icon: (
+      <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24">
+        <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    ),
+  },
   {
     label: "Kelola PS",
     href: "/admin/playstation",
@@ -84,6 +105,8 @@ const navItems = [
       </svg>
     ),
   },
+
+   
 ];
 
 interface AdminSidebarProps {
@@ -377,7 +400,7 @@ export default function AdminSidebar({ collapsed, setCollapsed }: AdminSidebarPr
           {/* Main Nav */}
           <div className="ps-section-label">Menu Utama</div>
           <nav>
-            {navItems.slice(0, 2).map((item) => (
+            {navItems.slice(0, 4).map((item) => (
               <Link
                 key={item.href}
                 href={item.href}
@@ -396,7 +419,7 @@ export default function AdminSidebar({ collapsed, setCollapsed }: AdminSidebarPr
           {/* Kelola Nav */}
           <div className="ps-section-label">Manajemen</div>
           <nav>
-            {navItems.slice(2).map((item) => (
+            {navItems.slice(4).map((item) => (
               <Link
                 key={item.href}
                 href={item.href}
