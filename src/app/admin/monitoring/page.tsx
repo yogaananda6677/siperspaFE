@@ -79,6 +79,7 @@ export default function MonitoringPage() {
             onTambahWaktu={state.handleTambahWaktu}
             onSelesaikan={state.handleSelesaikan}
             onBayar={state.handleBayar}
+            isMutating={state.isMutating}
             />
       )}
 

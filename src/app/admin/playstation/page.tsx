@@ -29,7 +29,7 @@ const STATUS_CONFIG = {
   maintenance: { label: "Maintenance", color: "#facc15", bg: "rgba(250,204,21,0.08)", border: "rgba(250,204,21,0.2)", dot: "#facc15" },
 };
 
-type ModalMode = "tambah" | "edit" | null;
+type ModalMode = "tambah" | "ubah" | null;
 const emptyForm: FormState = {
   id_tipe: "",
   nomor_ps: "",
@@ -97,7 +97,7 @@ export default function PlaystationPage() {
     setForm({ id_tipe: String(item.id_tipe), nomor_ps: item.nomor_ps, status_ps: item.status_ps });
     setFormError(null);
     setEditId(item.id_ps);
-    setModalMode("edit");
+    setModalMode("ubah");
   };
 
   const closeModal = () => { setModalMode(null); setFormError(null); };
@@ -116,7 +116,7 @@ export default function PlaystationPage() {
         created.tipe = tipeList.find(t => t.id_tipe === created.id_tipe);
         setData(prev => [...prev, created]);
         showToast("Unit PS berhasil ditambahkan.", "success");
-      } else if (modalMode === "edit" && editId !== null) {
+      } else if (modalMode === "ubah" && editId !== null) {
         const updated = await updatePlaystation(editId, payload);
         updated.tipe = tipeList.find(t => t.id_tipe === updated.id_tipe);
         setData(prev => prev.map(d => d.id_ps === editId ? updated : d));
@@ -475,7 +475,7 @@ const paginatedData = filteredData.slice(startIndex, endIndex);
                           <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                             <path d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" strokeLinecap="round" strokeLinejoin="round" />
                           </svg>
-                          Edit
+                          Ubah
                         </button>
 
                         {/* Hapus - disabled jika sedang digunakan */}

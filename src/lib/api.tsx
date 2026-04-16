@@ -1,4 +1,4 @@
-const BASE_URL = "http://127.0.0.1:8000/api";
+const BASE_URL = "http://192.168.1.8:8000/api";
 
 // ===== AUTH =====
 export type LoginPayload = {
@@ -196,12 +196,15 @@ export type MonitoringTransaksi = {
   id_transaksi: number;
   tanggal: string;
   status_transaksi: string;
+  sumber_transaksi: "admin";
   total_harga: number;
   user: MonitoringUser | null;
   detail_sewa: MonitoringDetailSewa[];
   detail_produk: MonitoringDetailProduk[];
   pembayaran?: MonitoringPembayaran | null;
 };
+
+
 
 export type MonitoringPlaystation = {
   id_ps: number;
@@ -226,6 +229,7 @@ export type TransaksiDetailProdukPayload = {
 
 export type CreateTransaksiPayload = {
   id_user: number;
+  sumber_transaksi: "admin" | "aplikasi";
   sewa?: TransaksiDetailSewaPayload[];
   produk?: TransaksiDetailProdukPayload[];
 };
@@ -264,6 +268,7 @@ export type TransaksiData = {
   tanggal: string;
   total_harga: number;
   status_transaksi: string;
+  sumber_transaksi: "admin";
   user?: TransaksiUser;
   detailSewa?: TransaksiDetailSewa[];
   detailProduk?: TransaksiDetailProduk[];
@@ -286,7 +291,7 @@ export type MonitoringPembayaran = {
   total_bayar: number;
   kembalian: number;
   waktu_bayar: string | null;
-  status_bayar: "pending" | "lunas" | "gagal";
+  status_bayar: "menuggu" | "lunas" | "gagal";
 };
 
 export type BayarTransaksiPayload = {
@@ -754,6 +759,7 @@ export async function getTransaksis(params?: {
   status?: string;
   tanggal?: string;
   user_id?: number;
+  sumber_transaksi?: string;
 }): Promise<GetTransaksiResponse> {
   const url = new URL(`${BASE_URL}/transaksi`);
 
@@ -761,10 +767,255 @@ export async function getTransaksis(params?: {
   if (params?.status) url.searchParams.set("status", params.status);
   if (params?.tanggal) url.searchParams.set("tanggal", params.tanggal);
   if (params?.user_id) url.searchParams.set("user_id", String(params.user_id));
+  if (params?.sumber_transaksi) url.searchParams.set("sumber_transaksi", params.sumber_transaksi);
 
   const res = await fetch(url.toString(), {
     headers: authHeaders(),
   });
 
   return handleResponse<GetTransaksiResponse>(res);
+}
+
+// APPROVE PELANGGAN
+export type ApprovalBookingUser = {
+  id_user: number;
+  name: string;
+  username: string;
+  email: string;
+};
+
+export type ApprovalBookingPs = {
+  id_ps: number;
+  nomor_ps: string;
+  status_ps: string;
+  tipe?: {
+    id_tipe: number;
+    nama_tipe: string;
+    harga_sewa?: number;
+  } | null;
+};
+
+export type ApprovalBookingDetailSewa = {
+  id_dt_booking: number;
+  id_ps: number;
+  jam_mulai: string;
+  jam_selesai: string | null;
+  durasi_menit?: number | null;
+  durasi_jam?: number | null;
+  subtotal?: number | null;
+  playstation?: ApprovalBookingPs | null;
+};
+
+export type ApprovalBookingDetailProduk = {
+  id_detail_produk: number;
+  qty: number;
+  subtotal?: number | null;
+  produk?: {
+    id_produk: number;
+    nama: string;
+    harga: number;
+  } | null;
+};
+
+export type ApprovalBookingItem = {
+  id_transaksi: number;
+  tanggal: string;
+  status_transaksi: string;
+  sumber_transaksi: string;
+  total_harga: number;
+  user?: ApprovalBookingUser | null;
+  detail_sewa?: ApprovalBookingDetailSewa[];
+  detail_produk?: ApprovalBookingDetailProduk[];
+  pembayaran?: {
+    id_pembayaran: number;
+    status_bayar: string;
+    metode_pembayaran?: string | null;
+    total_bayar?: number | null;
+    waktu_bayar?: string | null;
+  } | null;
+};
+
+export async function getWaitingBookings(): Promise<ApprovalBookingItem[]> {
+  const res = await fetch(`${BASE_URL}/transaksi?status=waiting&sumber_transaksi=aplikasi`, {
+    headers: authHeaders(),
+  });
+
+  const result = await handleResponse<{ data: ApprovalBookingItem[] }>(res);
+  return result.data ?? [];
+}
+
+export async function approveBooking(id: number): Promise<ApprovalBookingItem> {
+  const res = await fetch(`${BASE_URL}/transaksi/${id}/approve`, {
+    method: "PATCH",
+    headers: authHeaders(),
+  });
+
+  const result = await handleResponse<{ message: string; data: ApprovalBookingItem }>(res);
+  return result.data;
+}
+
+export async function rejectBooking(id: number): Promise<{ message: string }> {
+  const res = await fetch(`${BASE_URL}/transaksi/${id}/reject`, {
+    method: "PATCH",
+    headers: authHeaders(),
+  });
+
+  return handleResponse<{ message: string }>(res);
+}
+
+export type Pengguna = {
+  id_user: number;
+  name: string;
+  username: string;
+  email: string;
+  role: "admin" | "pelanggan";
+  created_at: string;
+};
+
+export type GetUsersResponse = {
+  data: Pengguna[];
+  current_page?: number;
+  last_page?: number;
+  per_page?: number;
+  total?: number;
+};
+
+export type CreateUserPayload = {
+  name: string;
+  username: string;
+  email: string;
+  role: "admin" | "pelanggan";
+  password: string;
+  password_confirmation: string;
+};
+
+export type UpdateUserPayload = Partial<{
+  name: string;
+  username: string;
+  email: string;
+  role: "admin" | "pelanggan";
+  password: string;
+  password_confirmation: string;
+}>;
+
+function mapAdminToPengguna(admin: Admin): Pengguna {
+  return {
+    id_user: admin.id_user,
+    name: admin.name,
+    username: admin.username,
+    email: admin.email,
+    role: "admin",
+    created_at: admin.created_at,
+  };
+}
+
+function mapPelangganToPengguna(pelanggan: Pelanggan): Pengguna {
+  return {
+    id_user: pelanggan.id_user,
+    name: pelanggan.name,
+    username: pelanggan.username,
+    email: pelanggan.email,
+    role: "pelanggan",
+    created_at: pelanggan.created_at,
+  };
+}
+
+export async function getUsers(params?: {
+  page?: number;
+  search?: string;
+  all?: boolean;
+}): Promise<GetUsersResponse> {
+  const [adminsRes, pelanggansRes] = await Promise.all([
+    getAdmins({
+      page: params?.page,
+      search: params?.search,
+      all: params?.all,
+    }),
+    getPelanggans({
+      page: params?.page,
+      search: params?.search,
+      all: params?.all,
+    }),
+  ]);
+
+  const admins = (adminsRes.data ?? []).map(mapAdminToPengguna);
+  const pelanggans = (pelanggansRes.data ?? []).map(mapPelangganToPengguna);
+
+  const data = [...admins, ...pelanggans].sort(
+    (a, b) =>
+      new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+  );
+
+  return {
+    data,
+    total: data.length,
+    current_page: 1,
+    last_page: 1,
+    per_page: data.length,
+  };
+}
+
+export async function createUser(
+  payload: CreateUserPayload
+): Promise<Pengguna> {
+  if (payload.role === "admin") {
+    const created = await createAdmin({
+      name: payload.name,
+      username: payload.username,
+      email: payload.email,
+      password: payload.password,
+      password_confirmation: payload.password_confirmation,
+    });
+
+    return mapAdminToPengguna(created);
+  }
+
+  const created = await createPelanggan({
+    name: payload.name,
+    username: payload.username,
+    email: payload.email,
+    password: payload.password,
+    password_confirmation: payload.password_confirmation,
+  });
+
+  return mapPelangganToPengguna(created);
+}
+
+export async function updateUser(
+  id: number,
+  payload: UpdateUserPayload & { currentRole?: "admin" | "pelanggan" }
+): Promise<Pengguna> {
+  const roleTarget = payload.role ?? payload.currentRole;
+
+  if (!roleTarget) {
+    throw new Error("Role pengguna tidak diketahui saat update.");
+  }
+
+  const basePayload = {
+    name: payload.name,
+    username: payload.username,
+    email: payload.email,
+    password: payload.password,
+    password_confirmation: payload.password_confirmation,
+  };
+
+  if (roleTarget === "admin") {
+    const updated = await updateAdmin(id, basePayload);
+    return mapAdminToPengguna(updated);
+  }
+
+  const updated = await updatePelanggan(id, basePayload);
+  return mapPelangganToPengguna(updated);
+}
+
+export async function deleteUser(
+  id: number,
+  role: "admin" | "pelanggan"
+): Promise<void> {
+  if (role === "admin") {
+    await deleteAdmin(id);
+    return;
+  }
+
+  await deletePelanggan(id);
 }

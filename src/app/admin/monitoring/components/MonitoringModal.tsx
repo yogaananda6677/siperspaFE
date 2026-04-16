@@ -11,7 +11,6 @@ import {
   getDurasiMenit,
   isExpired,
   STATUS_CONFIG,
-  
 } from "../lib/helpers";
 import {
   closeBtnStyle,
@@ -34,6 +33,11 @@ import {
 } from "../lib/styles";
 import type { ActiveTab, CartItem } from "../lib/types";
 import { ProductPicker } from "./ProductPicker";
+import {
+  canBayarTransaksi,
+  canSelesaikanTransaksi,
+  getNormalizedStatusBayar,
+} from "@/lib/transaksi-status";
 
 type MonitoringModalProps = {
   selected: MonitoringPlaystation;
@@ -68,11 +72,12 @@ type MonitoringModalProps = {
   onTambahWaktu: () => void;
   onSelesaikan: () => void;
   metodePembayaran: "cash" | "online";
-    setMetodePembayaran: Dispatch<SetStateAction<"cash" | "online">>;
-    jumlahBayar: string;
-    setJumlahBayar: Dispatch<SetStateAction<string>>;
-    submittingBayar: boolean;
-    onBayar: () => void;
+  setMetodePembayaran: Dispatch<SetStateAction<"cash" | "online">>;
+  jumlahBayar: string;
+  setJumlahBayar: Dispatch<SetStateAction<string>>;
+  submittingBayar: boolean;
+  onBayar: () => void;
+  isMutating: boolean;
 };
 
 export function MonitoringModal({
@@ -113,9 +118,10 @@ export function MonitoringModal({
   setJumlahBayar,
   submittingBayar,
   onBayar,
+  isMutating,
 }: MonitoringModalProps) {
   return (
-    <div onClick={onClose} style={overlayStyle}>
+    <div onClick={isMutating ? undefined : onClose} style={overlayStyle}>
       <div onClick={(e) => e.stopPropagation()} style={modalStyle}>
         <div
           style={{
@@ -135,7 +141,15 @@ export function MonitoringModal({
             </p>
           </div>
 
-          <button onClick={onClose} style={closeBtnStyle}>
+          <button
+            onClick={onClose}
+            disabled={isMutating}
+            style={{
+              ...closeBtnStyle,
+              opacity: isMutating ? 0.6 : 1,
+              cursor: isMutating ? "not-allowed" : "pointer",
+            }}
+          >
             ×
           </button>
         </div>
@@ -162,6 +176,7 @@ export function MonitoringModal({
             changeQty={changeQty}
             submittingCreate={submittingCreate}
             onCreateTransaksi={onCreateTransaksi}
+            isMutating={isMutating}
           />
         )}
 
@@ -192,7 +207,8 @@ export function MonitoringModal({
             onTambahWaktu={onTambahWaktu}
             onSelesaikan={onSelesaikan}
             onBayar={onBayar}
-            />
+            isMutating={isMutating}
+          />
         )}
 
         {selected.status_ps === "maintenance" && <MaintenanceSection />}
@@ -248,6 +264,7 @@ function CreateTransaksiSection({
   changeQty,
   submittingCreate,
   onCreateTransaksi,
+  isMutating,
 }: {
   selected: MonitoringPlaystation;
   pelanggans: Pelanggan[];
@@ -267,6 +284,7 @@ function CreateTransaksiSection({
   changeQty: (id_produk: number, delta: number) => void;
   submittingCreate: boolean;
   onCreateTransaksi: () => void;
+  isMutating: boolean;
 }) {
   return (
     <div style={panelStyle}>
@@ -288,6 +306,7 @@ function CreateTransaksiSection({
             value={selectedUserId}
             onChange={(e) => setSelectedUserId(e.target.value)}
             style={inputStyle}
+            disabled={isMutating}
           >
             <option value="">Pilih pelanggan</option>
             {pelanggans.map((p) => (
@@ -299,14 +318,15 @@ function CreateTransaksiSection({
         </div>
 
         <div>
-        <label style={labelStyle}>Jam Mulai</label>
-        <input
+          <label style={labelStyle}>Jam Mulai</label>
+          <input
             type="datetime-local"
             value={jamMulai}
             onChange={(e) => setJamMulai(e.target.value)}
             step={60}
             style={inputStyle}
-        />
+            disabled={isMutating}
+          />
         </div>
 
         <div>
@@ -315,6 +335,7 @@ function CreateTransaksiSection({
             value={durasiMenit}
             onChange={(e) => setDurasiMenit(Number(e.target.value))}
             style={inputStyle}
+            disabled={isMutating}
           >
             {[30, 60, 90, 120, 150, 180, 240].map((m) => (
               <option key={m} value={m}>
@@ -361,10 +382,15 @@ function CreateTransaksiSection({
         onProductKeywordChange={setProductKeyword}
         onAddToCart={addToCart}
         onChangeQty={changeQty}
+        disabled={isMutating}
       />
 
       <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 16 }}>
-        <button onClick={onCreateTransaksi} disabled={submittingCreate} style={primaryBtnStyle}>
+        <button
+          onClick={onCreateTransaksi}
+          disabled={submittingCreate || isMutating}
+          style={primaryBtnStyle}
+        >
           {submittingCreate ? "Menyimpan..." : "Buat Transaksi"}
         </button>
       </div>
@@ -398,6 +424,7 @@ function ActiveTransaksiSection({
   onTambahWaktu,
   onSelesaikan,
   onBayar,
+  isMutating,
 }: {
   selected: MonitoringPlaystation;
   activeTab: ActiveTab;
@@ -424,16 +451,28 @@ function ActiveTransaksiSection({
   onTambahWaktu: () => void;
   onSelesaikan: () => void;
   onBayar: () => void;
+  isMutating: boolean;
 }) {
   const transaksi = selected.active_transaksi!;
-const sewaAktif = findActiveSewaForPs(transaksi, selected.id_ps);
-const expired = isExpired(sewaAktif?.jam_selesai, nowTick);
+  const sewaAktif = findActiveSewaForPs(transaksi, selected.id_ps);
+  const expired = isExpired(sewaAktif?.jam_selesai, nowTick);
 
-const pembayaranAktif = transaksi.pembayaran ?? null;
-const sudahLunas = pembayaranAktif?.status_bayar === "lunas";
-const totalAktif = Number(transaksi.total_harga || 0);
-const nominalBayar = Number(jumlahBayar || 0);
-const kembalianCash = Math.max(0, nominalBayar - totalAktif);
+  const pembayaranAktif = transaksi.pembayaran ?? null;
+  const statusBayar = getNormalizedStatusBayar(transaksi);
+  const bisaBayar = canBayarTransaksi(transaksi);
+  const bisaSelesaikan = canSelesaikanTransaksi(transaksi);
+
+  const sudahLunas = statusBayar === "lunas";
+  const totalAktif = Number(transaksi.total_harga || 0);
+  const nominalBayar =
+    metodePembayaran === "online" ? totalAktif : Number(jumlahBayar || 0);
+  const kembalianCash = Math.max(0, nominalBayar - totalAktif);
+
+  const lockedTabButton = (active: boolean) => ({
+    ...tabButton(active),
+    opacity: isMutating ? 0.6 : 1,
+    cursor: isMutating ? "not-allowed" : "pointer",
+  });
 
   return (
     <>
@@ -468,21 +507,30 @@ const kembalianCash = Math.max(0, nominalBayar - totalAktif);
       </div>
 
       <div style={{ display: "flex", gap: 8, marginBottom: 18, flexWrap: "wrap" }}>
-        <button onClick={() => setActiveTab("sewa")} style={tabButton(activeTab === "sewa")}>
-            Sewa PS
-        </button>
-
-        <button onClick={() => setActiveTab("produk")} style={tabButton(activeTab === "produk")}>
-            Produk
+        <button
+          onClick={() => !isMutating && setActiveTab("sewa")}
+          disabled={isMutating}
+          style={lockedTabButton(activeTab === "sewa")}
+        >
+          Sewa PS
         </button>
 
         <button
-            onClick={() => setActiveTab("pembayaran")}
-            style={tabButton(activeTab === "pembayaran")}
+          onClick={() => !isMutating && setActiveTab("produk")}
+          disabled={isMutating}
+          style={lockedTabButton(activeTab === "produk")}
         >
-            Pembayaran
+          Produk
         </button>
-        </div>
+
+        <button
+          onClick={() => !isMutating && setActiveTab("pembayaran")}
+          disabled={isMutating}
+          style={lockedTabButton(activeTab === "pembayaran")}
+        >
+          Pembayaran
+        </button>
+      </div>
 
       {activeTab === "sewa" ? (
         <div style={panelStyle}>
@@ -567,6 +615,7 @@ const kembalianCash = Math.max(0, nominalBayar - totalAktif);
                   value={menitTambahan}
                   onChange={(e) => setMenitTambahan(Number(e.target.value))}
                   style={{ ...inputStyle, minWidth: 160 }}
+                  disabled={isMutating}
                 >
                   {[30, 60, 90, 120].map((m) => (
                     <option key={m} value={m}>
@@ -576,7 +625,11 @@ const kembalianCash = Math.max(0, nominalBayar - totalAktif);
                 </select>
               </div>
 
-              <button onClick={onTambahWaktu} disabled={submittingTambahWaktu} style={primaryBtnStyle}>
+              <button
+                onClick={onTambahWaktu}
+                disabled={submittingTambahWaktu || isMutating}
+                style={primaryBtnStyle}
+              >
                 {submittingTambahWaktu ? "Memproses..." : "Tambah Waktu"}
               </button>
             </div>
@@ -591,7 +644,19 @@ const kembalianCash = Math.max(0, nominalBayar - totalAktif);
               flexWrap: "wrap",
             }}
           >
-            <button onClick={onSelesaikan} disabled={submittingSelesai} style={dangerBtnStyle}>
+            <button
+              onClick={onSelesaikan}
+              disabled={submittingSelesai || !bisaSelesaikan || isMutating}
+              style={{
+                ...dangerBtnStyle,
+                opacity: submittingSelesai || !bisaSelesaikan || isMutating ? 0.6 : 1,
+                cursor:
+                  submittingSelesai || !bisaSelesaikan || isMutating
+                    ? "not-allowed"
+                    : "pointer",
+              }}
+              title={!bisaSelesaikan ? "Transaksi hanya bisa diselesaikan jika sudah lunas" : ""}
+            >
               {submittingSelesai ? "Memproses..." : "Selesaikan & Tampilkan Struk"}
             </button>
           </div>
@@ -637,6 +702,7 @@ const kembalianCash = Math.max(0, nominalBayar - totalAktif);
             onProductKeywordChange={setProductKeyword}
             onAddToCart={addToCart}
             onChangeQty={changeQty}
+            disabled={isMutating}
           />
 
           <div
@@ -653,134 +719,147 @@ const kembalianCash = Math.max(0, nominalBayar - totalAktif);
               Tambahan produk: {formatRupiah(produkSubtotal)}
             </div>
 
-            <button onClick={onTambahProduk} disabled={submittingTambahProduk} style={primaryBtnStyle}>
+            <button
+              onClick={onTambahProduk}
+              disabled={submittingTambahProduk || isMutating}
+              style={primaryBtnStyle}
+            >
               {submittingTambahProduk ? "Menambahkan..." : "Tambah Produk"}
             </button>
           </div>
         </div>
-      ) : (<div style={panelStyle}>
-  <h3 style={{ margin: "0 0 14px", fontSize: 15, color: "#f0eaff" }}>
-    Pembayaran
-  </h3>
+      ) : (
+        <div style={panelStyle}>
+          <h3 style={{ margin: "0 0 14px", fontSize: 15, color: "#f0eaff" }}>
+            Pembayaran
+          </h3>
 
-  <div
-    style={{
-      display: "grid",
-      gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-      gap: 12,
-      marginBottom: 14,
-    }}
-  >
-    <div style={miniBoxStyle}>
-      <div style={miniLabelStyle}>Total Tagihan</div>
-      <div style={miniValueStyle}>{formatRupiah(totalAktif)}</div>
-    </div>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+              gap: 12,
+              marginBottom: 14,
+            }}
+          >
+            <div style={miniBoxStyle}>
+              <div style={miniLabelStyle}>Total Tagihan</div>
+              <div style={miniValueStyle}>{formatRupiah(totalAktif)}</div>
+            </div>
 
-    <div style={miniBoxStyle}>
-      <div style={miniLabelStyle}>Status Pembayaran</div>
-      <div style={miniValueStyle}>{pembayaranAktif?.status_bayar ?? "belum dibayar"}</div>
-    </div>
-  </div>
+            <div style={miniBoxStyle}>
+              <div style={miniLabelStyle}>Status Pembayaran</div>
+              <div style={miniValueStyle}>{statusBayar || "belum dibayar"}</div>
+            </div>
+          </div>
 
-  {pembayaranAktif && (
-    <div style={{ ...emptyNoticeStyle, marginBottom: 14 }}>
-      Metode: {pembayaranAktif.metode_pembayaran}
-      {" • "}
-      Total Bayar: {formatRupiah(Number(pembayaranAktif.total_bayar || 0))}
-      {" • "}
-      Kembalian: {formatRupiah(Number(pembayaranAktif.kembalian || 0))}
-      {" • "}
-      Waktu Bayar: {formatDateTime(pembayaranAktif.waktu_bayar)}
-    </div>
-  )}
+          {pembayaranAktif && (
+            <div style={{ ...emptyNoticeStyle, marginBottom: 14 }}>
+              Metode: {pembayaranAktif.metode_pembayaran}
+              {" • "}
+              Total Bayar: {formatRupiah(Number(pembayaranAktif.total_bayar || 0))}
+              {" • "}
+              Kembalian: {formatRupiah(Number(pembayaranAktif.kembalian || 0))}
+              {" • "}
+              Waktu Bayar: {formatDateTime(pembayaranAktif.waktu_bayar)}
+            </div>
+          )}
 
-  <div
-    style={{
-      display: "grid",
-      gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-      gap: 12,
-      marginBottom: 14,
-    }}
-  >
-    <div>
-      <label style={labelStyle}>Metode Pembayaran</label>
-      <select
-        value={metodePembayaran}
-        onChange={(e) => setMetodePembayaran(e.target.value as "cash" | "online")}
-        style={inputStyle}
-        disabled={sudahLunas}
-      >
-        <option value="cash">Cash</option>
-        <option value="online">Online Payment</option>
-      </select>
-    </div>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+              gap: 12,
+              marginBottom: 14,
+            }}
+          >
+            <div>
+              <label style={labelStyle}>Metode Pembayaran</label>
+              <select
+                value={metodePembayaran}
+                onChange={(e) => setMetodePembayaran(e.target.value as "cash" | "online")}
+                style={inputStyle}
+                disabled={sudahLunas || isMutating}
+              >
+                <option value="cash">Cash</option>
+                <option value="online">Online Payment</option>
+              </select>
+            </div>
 
-    <div>
-      <label style={labelStyle}>Jumlah Bayar</label>
-      <input
-        type="number"
-        min={0}
-        value={metodePembayaran === "online" ? String(totalAktif) : jumlahBayar}
-        onChange={(e) => setJumlahBayar(e.target.value)}
-        style={inputStyle}
-        disabled={sudahLunas || metodePembayaran === "online"}
-      />
-    </div>
-  </div>
+            <div>
+              <label style={labelStyle}>Jumlah Bayar</label>
+              <input
+                type="number"
+                min={0}
+                value={metodePembayaran === "online" ? String(totalAktif) : jumlahBayar}
+                onChange={(e) => setJumlahBayar(e.target.value)}
+                style={inputStyle}
+                disabled={sudahLunas || metodePembayaran === "online" || isMutating}
+              />
+            </div>
+          </div>
 
-  {metodePembayaran === "cash" && (
-    <div
-      style={{
-        display: "grid",
-        gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-        gap: 12,
-        marginBottom: 14,
-      }}
-    >
-      <div style={summaryBoxStyle}>
-        <div style={summaryLabelStyle}>Nominal dibayar</div>
-        <div style={summaryValueStyle}>{formatRupiah(nominalBayar)}</div>
-      </div>
+          {metodePembayaran === "cash" && (
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+                gap: 12,
+                marginBottom: 14,
+              }}
+            >
+              <div style={summaryBoxStyle}>
+                <div style={summaryLabelStyle}>Nominal dibayar</div>
+                <div style={summaryValueStyle}>{formatRupiah(nominalBayar)}</div>
+              </div>
 
-      <div style={summaryBoxStyle}>
-        <div style={summaryLabelStyle}>Kembalian</div>
-        <div style={summaryValueStyle}>{formatRupiah(kembalianCash)}</div>
-      </div>
-    </div>
-  )}
+              <div style={summaryBoxStyle}>
+                <div style={summaryLabelStyle}>Kembalian</div>
+                <div style={summaryValueStyle}>{formatRupiah(kembalianCash)}</div>
+              </div>
+            </div>
+          )}
 
-  {metodePembayaran === "online" && (
-    <div style={{ ...emptyNoticeStyle, marginBottom: 14 }}>
-      Online payment akan langsung dicatat lunas sebesar total transaksi.
-    </div>
-  )}
+          {metodePembayaran === "online" && (
+            <div style={{ ...emptyNoticeStyle, marginBottom: 14 }}>
+              Online payment akan langsung dicatat lunas sebesar total transaksi.
+            </div>
+          )}
 
-  <div
-    style={{
-      display: "flex",
-      justifyContent: "space-between",
-      gap: 12,
-      alignItems: "center",
-      flexWrap: "wrap",
-    }}
-  >
-    <div style={{ color: "#9b8ec4", fontSize: 13 }}>
-      Setelah pembayaran lunas, transaksi bisa diselesaikan dan struk bisa dicetak.
-    </div>
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              gap: 12,
+              alignItems: "center",
+              flexWrap: "wrap",
+            }}
+          >
+            <div style={{ color: "#9b8ec4", fontSize: 13 }}>
+              Setelah pembayaran lunas, transaksi bisa diselesaikan dan struk bisa dicetak.
+            </div>
 
-    <button
-      onClick={onBayar}
-      disabled={submittingBayar || sudahLunas}
-      style={primaryBtnStyle}
-    >
-      {submittingBayar
-        ? "Menyimpan..."
-        : sudahLunas
-        ? "Sudah Lunas"
-        : "Simpan Pembayaran"}
-    </button>
-  </div>
-</div>)}
+            <button
+              onClick={onBayar}
+              disabled={submittingBayar || !bisaBayar || isMutating}
+              style={{
+                ...primaryBtnStyle,
+                opacity: submittingBayar || !bisaBayar || isMutating ? 0.6 : 1,
+                cursor:
+                  submittingBayar || !bisaBayar || isMutating
+                    ? "not-allowed"
+                    : "pointer",
+              }}
+            >
+              {submittingBayar
+                ? "Menyimpan..."
+                : sudahLunas
+                ? "Sudah Lunas"
+                : "Simpan Pembayaran"}
+            </button>
+          </div>
+        </div>
+      )}
 
       <div
         style={{

@@ -1,18 +1,22 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
-  type Pelanggan,
-  getPelanggans,
-  createPelanggan,
-  updatePelanggan,
-  deletePelanggan,
+  type Pengguna,
+  getUsers,
+  createUser,
+  updateUser,
+  deleteUser,
 } from "@/lib/api";
+
+type RoleType = "admin" | "pelanggan";
+type RoleFilter = "semua" | RoleType;
 
 type FormData = {
   name: string;
   username: string;
   email: string;
+  role: RoleType;
   password: string;
   password_confirmation: string;
 };
@@ -21,8 +25,9 @@ const EMPTY_FORM: FormData = {
   name: "",
   username: "",
   email: "",
-  password: "pelanggan123",
-  password_confirmation: "pelanggan123",
+  role: "pelanggan",
+  password: "password123",
+  password_confirmation: "password123",
 };
 
 const initials = (name: string) =>
@@ -49,11 +54,38 @@ const AVATAR_COLORS = [
 ];
 const avatarColor = (id: number) => AVATAR_COLORS[id % AVATAR_COLORS.length];
 
-export default function KelolaPelangganPage() {
-  const [data, setData] = useState<Pelanggan[]>([]);
+const roleBadgeStyle = (role: RoleType): React.CSSProperties => {
+  const isAdmin = role === "admin";
+
+  return {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 6,
+    padding: "4px 12px",
+    borderRadius: 8,
+    background: isAdmin ? "rgba(245,158,11,0.15)" : "rgba(59,130,246,0.15)",
+    border: isAdmin
+      ? "1px solid rgba(245,158,11,0.25)"
+      : "1px solid rgba(59,130,246,0.25)",
+    fontSize: 12,
+    fontWeight: 600,
+    color: isAdmin ? "#fbbf24" : "#93c5fd",
+  };
+};
+
+const roleDotStyle = (role: RoleType): React.CSSProperties => ({
+  width: 5,
+  height: 5,
+  borderRadius: "50%",
+  background: role === "admin" ? "#f59e0b" : "#60a5fa",
+});
+
+export default function KelolaPenggunaPage() {
+  const [data, setData] = useState<Pengguna[]>([]);
   const [loading, setLoading] = useState(true);
 
   const [search, setSearch] = useState("");
+  const [roleFilter, setRoleFilter] = useState<RoleFilter>("semua");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
@@ -61,7 +93,7 @@ export default function KelolaPelangganPage() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [selectedPelanggan, setSelectedPelanggan] = useState<Pelanggan | null>(null);
+  const [selectedUser, setSelectedUser] = useState<Pengguna | null>(null);
 
   const [form, setForm] = useState<FormData>(EMPTY_FORM);
   const [errors, setErrors] = useState<Partial<FormData>>({});
@@ -71,12 +103,12 @@ export default function KelolaPelangganPage() {
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
 
   useEffect(() => {
-    fetchAll();
+    void fetchAll();
   }, []);
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [search, sortOrder, itemsPerPage]);
+  }, [search, roleFilter, sortOrder, itemsPerPage]);
 
   const showToast = (msg: string, type: "success" | "error" = "success") => {
     setToast({ msg, type });
@@ -86,10 +118,10 @@ export default function KelolaPelangganPage() {
   const fetchAll = async () => {
     setLoading(true);
     try {
-      const res = await getPelanggans({ all: true });
+      const res = await getUsers({ all: true });
       setData(res.data ?? []);
     } catch (e) {
-      showToast(e instanceof Error ? e.message : "Gagal memuat data pelanggan", "error");
+      showToast(e instanceof Error ? e.message : "Gagal memuat data pengguna", "error");
     } finally {
       setLoading(false);
     }
@@ -126,12 +158,13 @@ export default function KelolaPelangganPage() {
     setShowAddModal(true);
   };
 
-  const openEdit = (pelanggan: Pelanggan) => {
-    setSelectedPelanggan(pelanggan);
+  const openEdit = (user: Pengguna) => {
+    setSelectedUser(user);
     setForm({
-      name: pelanggan.name,
-      username: pelanggan.username,
-      email: pelanggan.email,
+      name: user.name,
+      username: user.username,
+      email: user.email,
+      role: (user.role as RoleType) ?? "pelanggan",
       password: "",
       password_confirmation: "",
     });
@@ -139,8 +172,8 @@ export default function KelolaPelangganPage() {
     setShowEditModal(true);
   };
 
-  const openDelete = (pelanggan: Pelanggan) => {
-    setSelectedPelanggan(pelanggan);
+  const openDelete = (user: Pengguna) => {
+    setSelectedUser(user);
     setShowDeleteModal(true);
   };
 
@@ -149,9 +182,9 @@ export default function KelolaPelangganPage() {
 
     setSubmitting(true);
     try {
-      const created = await createPelanggan(form);
+      const created = await createUser(form);
       setData((prev) => [created, ...prev]);
-      showToast("Pelanggan berhasil ditambahkan");
+      showToast("Pengguna berhasil ditambahkan");
       setShowAddModal(false);
       setForm(EMPTY_FORM);
       setErrors({});
@@ -163,7 +196,7 @@ export default function KelolaPelangganPage() {
   };
 
   const handleEdit = async () => {
-    if (!selectedPelanggan) return;
+    if (!selectedUser) return;
     if (!validateForm(true)) return;
 
     setSubmitting(true);
@@ -172,6 +205,7 @@ export default function KelolaPelangganPage() {
         name: form.name,
         username: form.username,
         email: form.email,
+        role: form.role,
       };
 
       if (form.password) {
@@ -179,17 +213,15 @@ export default function KelolaPelangganPage() {
         payload.password_confirmation = form.password_confirmation;
       }
 
-      const updated = await updatePelanggan(selectedPelanggan.id_user, payload);
+      const updated = await updateUser(selectedUser.id_user, payload);
 
       setData((prev) =>
-        prev.map((item) =>
-          item.id_user === selectedPelanggan.id_user ? updated : item
-        )
+        prev.map((item) => (item.id_user === selectedUser.id_user ? updated : item))
       );
 
-      showToast("Pelanggan berhasil diupdate");
+      showToast("Pengguna berhasil diupdate");
       setShowEditModal(false);
-      setSelectedPelanggan(null);
+      setSelectedUser(null);
       setErrors({});
     } catch (e) {
       showToast(e instanceof Error ? e.message : "Terjadi kesalahan", "error");
@@ -199,17 +231,15 @@ export default function KelolaPelangganPage() {
   };
 
   const handleDelete = async () => {
-    if (!selectedPelanggan) return;
+    if (!selectedUser) return;
 
     setDeleting(true);
     try {
-      await deletePelanggan(selectedPelanggan.id_user);
-      setData((prev) =>
-        prev.filter((item) => item.id_user !== selectedPelanggan.id_user)
-      );
-      showToast("Pelanggan berhasil dihapus");
+      await deleteUser(selectedUser.id_user, selectedUser.role);
+      setData((prev) => prev.filter((item) => item.id_user !== selectedUser.id_user));
+      showToast("Pengguna berhasil dihapus");
       setShowDeleteModal(false);
-      setSelectedPelanggan(null);
+      setSelectedUser(null);
     } catch (e) {
       showToast(e instanceof Error ? e.message : "Gagal menghapus", "error");
     } finally {
@@ -217,20 +247,27 @@ export default function KelolaPelangganPage() {
     }
   };
 
-  const filteredData = [...data]
-    .filter((item) => {
-      const keyword = search.toLowerCase();
-      return (
-        !keyword ||
-        item.name.toLowerCase().includes(keyword) ||
-        item.username.toLowerCase().includes(keyword) ||
-        item.email.toLowerCase().includes(keyword)
-      );
-    })
-    .sort((a, b) => {
-      const cmp = a.name.localeCompare(b.name, "id", { sensitivity: "base" });
-      return sortOrder === "asc" ? cmp : -cmp;
-    });
+  const filteredData = useMemo(() => {
+    return [...data]
+      .filter((item) => {
+        const keyword = search.toLowerCase();
+        const role = (item.role as RoleType) ?? "pelanggan";
+
+        const matchKeyword =
+          !keyword ||
+          item.name.toLowerCase().includes(keyword) ||
+          item.username.toLowerCase().includes(keyword) ||
+          item.email.toLowerCase().includes(keyword);
+
+        const matchRole = roleFilter === "semua" || role === roleFilter;
+
+        return matchKeyword && matchRole;
+      })
+      .sort((a, b) => {
+        const cmp = a.name.localeCompare(b.name, "id", { sensitivity: "base" });
+        return sortOrder === "asc" ? cmp : -cmp;
+      });
+  }, [data, search, roleFilter, sortOrder]);
 
   const totalPages = Math.max(1, Math.ceil(filteredData.length / itemsPerPage));
   const startIndex = (currentPage - 1) * itemsPerPage;
@@ -238,14 +275,13 @@ export default function KelolaPelangganPage() {
   const paginatedData = filteredData.slice(startIndex, endIndex);
 
   useEffect(() => {
-    if (currentPage > totalPages) {
-      setCurrentPage(totalPages);
-    }
+    if (currentPage > totalPages) setCurrentPage(totalPages);
   }, [currentPage, totalPages]);
 
   const stats = {
     total: data.length,
-    aktif: data.length,
+    admin: data.filter((item) => item.role === "admin").length,
+    pelanggan: data.filter((item) => item.role === "pelanggan").length,
   };
 
   return (
@@ -298,7 +334,7 @@ export default function KelolaPelangganPage() {
               color: "#f0eaff",
             }}
           >
-            Kelola Pelanggan
+            Kelola Pengguna
           </h1>
           <p
             style={{
@@ -307,7 +343,7 @@ export default function KelolaPelangganPage() {
               color: "#9b8ec4",
             }}
           >
-            Manajemen akun pelanggan sistem
+            Manajemen akun admin dan pelanggan
           </p>
         </div>
 
@@ -338,32 +374,39 @@ export default function KelolaPelangganPage() {
           >
             <path d="M12 5v14M5 12h14" strokeLinecap="round" />
           </svg>
-          Tambah Pelanggan
+          Tambah Pengguna
         </button>
       </div>
 
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: "repeat(4, 1fr)",
+          gridTemplateColumns: "repeat(3, 1fr)",
           gap: 14,
           marginBottom: 24,
         }}
       >
         {[
           {
-            label: "Total Pelanggan",
+            label: "Total Pengguna",
             value: stats.total,
             color: "#9f6ef5",
             bg: "rgba(159,110,245,0.08)",
             border: "rgba(159,110,245,0.2)",
           },
           {
-            label: "Aktif",
-            value: stats.aktif,
-            color: "#4ade80",
-            bg: "rgba(74,222,128,0.08)",
-            border: "rgba(74,222,128,0.2)",
+            label: "Admin",
+            value: stats.admin,
+            color: "#fbbf24",
+            bg: "rgba(245,158,11,0.08)",
+            border: "rgba(245,158,11,0.2)",
+          },
+          {
+            label: "Pelanggan",
+            value: stats.pelanggan,
+            color: "#60a5fa",
+            bg: "rgba(59,130,246,0.08)",
+            border: "rgba(59,130,246,0.2)",
           },
         ].map((s) => (
           <div
@@ -410,7 +453,7 @@ export default function KelolaPelangganPage() {
           alignItems: "center",
         }}
       >
-        <div style={{ position: "relative", flex: "1 1 200px", minWidth: 180 }}>
+        <div style={{ position: "relative", flex: "1 1 240px", minWidth: 200 }}>
           <svg
             width="14"
             height="14"
@@ -448,6 +491,31 @@ export default function KelolaPelangganPage() {
             }}
           />
         </div>
+
+        <select
+          value={roleFilter}
+          onChange={(e) => setRoleFilter(e.target.value as RoleFilter)}
+          style={{
+            padding: "8px 12px",
+            borderRadius: 10,
+            fontSize: 13,
+            background: "rgba(255,255,255,0.04)",
+            border: "1px solid rgba(159,110,245,0.2)",
+            color: "#f0eaff",
+            outline: "none",
+            cursor: "pointer",
+          }}
+        >
+          <option value="semua" style={{ background: "#1e1040" }}>
+            Semua Role
+          </option>
+          <option value="admin" style={{ background: "#1e1040" }}>
+            Admin
+          </option>
+          <option value="pelanggan" style={{ background: "#1e1040" }}>
+            Pelanggan
+          </option>
+        </select>
 
         <select
           value={sortOrder}
@@ -524,17 +592,21 @@ export default function KelolaPelangganPage() {
               </svg>
             </div>
             <p style={{ margin: 0, fontSize: 14, fontWeight: 600, color: "#f0eaff" }}>
-              {search ? "Tidak ada pelanggan ditemukan" : "Belum ada pelanggan"}
+              {search || roleFilter !== "semua"
+                ? "Tidak ada pengguna ditemukan"
+                : "Belum ada pengguna"}
             </p>
             <p style={{ margin: "4px 0 0", fontSize: 13, color: "#9b8ec4" }}>
-              {search ? "Coba ubah kata kunci pencarian." : 'Klik "Tambah Pelanggan" untuk mulai menambahkan.'}
+              {search || roleFilter !== "semua"
+                ? "Coba ubah filter atau kata kunci pencarian."
+                : 'Klik "Tambah Pengguna" untuk mulai menambahkan.'}
             </p>
           </div>
         ) : (
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
               <tr style={{ borderBottom: "1px solid rgba(159,110,245,0.15)" }}>
-                {["No", "Pelanggan", "Email", "Role", "Bergabung", "Aksi"].map((h) => (
+                {["No", "Pengguna", "Email", "Role", "Bergabung", "Aksi"].map((h) => (
                   <th
                     key={h}
                     style={{
@@ -615,29 +687,9 @@ export default function KelolaPelangganPage() {
                   </td>
 
                   <td style={{ padding: "16px 20px" }}>
-                    <span
-                      style={{
-                        display: "inline-flex",
-                        alignItems: "center",
-                        gap: 6,
-                        padding: "4px 12px",
-                        borderRadius: 8,
-                        background: "rgba(59,130,246,0.15)",
-                        border: "1px solid rgba(59,130,246,0.25)",
-                        fontSize: 12,
-                        fontWeight: 600,
-                        color: "#93c5fd",
-                      }}
-                    >
-                      <span
-                        style={{
-                          width: 5,
-                          height: 5,
-                          borderRadius: "50%",
-                          background: "#60a5fa",
-                        }}
-                      />
-                      Pelanggan
+                    <span style={roleBadgeStyle(item.role)}>
+                      <span style={roleDotStyle(item.role)} />
+                      {item.role === "admin" ? "Admin" : "Pelanggan"}
                     </span>
                   </td>
 
@@ -743,9 +795,7 @@ export default function KelolaPelangganPage() {
                 borderRadius: 10,
                 border: "1px solid rgba(159,110,245,0.25)",
                 background:
-                  currentPage === 1
-                    ? "rgba(255,255,255,0.03)"
-                    : "transparent",
+                  currentPage === 1 ? "rgba(255,255,255,0.03)" : "transparent",
                 color: currentPage === 1 ? "#666" : "#c9aff5",
                 cursor: currentPage === 1 ? "not-allowed" : "pointer",
               }}
@@ -765,21 +815,16 @@ export default function KelolaPelangganPage() {
             </span>
 
             <button
-              onClick={() =>
-                setCurrentPage((p) => Math.min(p + 1, totalPages))
-              }
+              onClick={() => setCurrentPage((p) => Math.min(p + 1, totalPages))}
               disabled={currentPage === totalPages}
               style={{
                 padding: "8px 12px",
                 borderRadius: 10,
                 border: "1px solid rgba(159,110,245,0.25)",
                 background:
-                  currentPage === totalPages
-                    ? "rgba(255,255,255,0.03)"
-                    : "transparent",
+                  currentPage === totalPages ? "rgba(255,255,255,0.03)" : "transparent",
                 color: currentPage === totalPages ? "#666" : "#c9aff5",
-                cursor:
-                  currentPage === totalPages ? "not-allowed" : "pointer",
+                cursor: currentPage === totalPages ? "not-allowed" : "pointer",
               }}
             >
               Next
@@ -789,291 +834,253 @@ export default function KelolaPelangganPage() {
       )}
 
       {showAddModal && (
-        <div
-          onClick={(e) => e.target === e.currentTarget && setShowAddModal(false)}
-          style={{
-            position: "fixed",
-            inset: 0,
-            zIndex: 100,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            background: "rgba(0,0,0,0.65)",
-            backdropFilter: "blur(6px)",
-          }}
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            style={{
-              background: "#1e1040",
-              border: "1px solid rgba(159,110,245,0.25)",
-              borderRadius: 20,
-              padding: "28px",
-              width: 460,
-              boxShadow: "0 24px 60px rgba(0,0,0,0.5)",
-            }}
-          >
-            <h2 style={{ margin: "0 0 20px", fontSize: 16, fontWeight: 700, color: "#f0eaff" }}>
-              Tambah Pelanggan Baru
-            </h2>
+        <ModalWrapper onClose={() => setShowAddModal(false)}>
+          <h2 style={modalTitleStyle}>Tambah Pengguna Baru</h2>
 
+          <InputField
+            label="Nama Lengkap"
+            value={form.name}
+            onChange={(v) => setForm({ ...form, name: v })}
+            error={errors.name}
+            placeholder="Masukkan nama lengkap"
+          />
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 14px" }}>
             <InputField
-              label="Nama Lengkap"
-              value={form.name}
-              onChange={(v) => setForm({ ...form, name: v })}
-              error={errors.name}
-              placeholder="Masukkan nama lengkap"
+              label="Username"
+              value={form.username}
+              onChange={(v) => setForm({ ...form, username: v })}
+              error={errors.username}
+              placeholder="contoh: admin_baru"
             />
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 14px" }}>
-              <InputField
-                label="Username"
-                value={form.username}
-                onChange={(v) => setForm({ ...form, username: v })}
-                error={errors.username}
-                placeholder="contoh: pelanggan_baru"
-              />
-              <InputField
-                label="Email"
-                value={form.email}
-                onChange={(v) => setForm({ ...form, email: v })}
-                error={errors.email}
-                placeholder="pelanggan@example.com"
-                type="email"
-              />
-            </div>
-
-            <div style={{ display: "flex", gap: 10, marginTop: 8 }}>
-              <button
-                onClick={() => setShowAddModal(false)}
-                style={{
-                  flex: 1,
-                  padding: "11px 0",
-                  borderRadius: 10,
-                  border: "1px solid rgba(159,110,245,0.25)",
-                  background: "transparent",
-                  color: "#c9aff5",
-                  fontSize: 13.5,
-                  fontWeight: 600,
-                  cursor: "pointer",
-                }}
-              >
-                Batal
-              </button>
-              <button
-                onClick={handleAdd}
-                disabled={submitting}
-                style={{
-                  flex: 1,
-                  padding: "11px 0",
-                  borderRadius: 10,
-                  background: "linear-gradient(135deg, #5b2faa, #9f6ef5)",
-                  border: "none",
-                  color: "white",
-                  fontSize: 13.5,
-                  fontWeight: 600,
-                  cursor: submitting ? "not-allowed" : "pointer",
-                  opacity: submitting ? 0.6 : 1,
-                }}
-              >
-                {submitting ? "Menyimpan..." : "Simpan Pelanggan"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {showEditModal && selectedPelanggan && (
-        <div
-          onClick={(e) => e.target === e.currentTarget && setShowEditModal(false)}
-          style={{
-            position: "fixed",
-            inset: 0,
-            zIndex: 100,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            background: "rgba(0,0,0,0.65)",
-            backdropFilter: "blur(6px)",
-          }}
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            style={{
-              background: "#1e1040",
-              border: "1px solid rgba(159,110,245,0.25)",
-              borderRadius: 20,
-              padding: "28px",
-              width: 460,
-              boxShadow: "0 24px 60px rgba(0,0,0,0.5)",
-            }}
-          >
-            <h2 style={{ margin: "0 0 20px", fontSize: 16, fontWeight: 700, color: "#f0eaff" }}>
-              Edit Pelanggan
-            </h2>
-
             <InputField
-              label="Nama Lengkap"
-              value={form.name}
-              onChange={(v) => setForm({ ...form, name: v })}
-              error={errors.name}
-              placeholder="Masukkan nama lengkap"
+              label="Email"
+              value={form.email}
+              onChange={(v) => setForm({ ...form, email: v })}
+              error={errors.email}
+              placeholder="user@example.com"
+              type="email"
             />
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 14px" }}>
-              <InputField
-                label="Username"
-                value={form.username}
-                onChange={(v) => setForm({ ...form, username: v })}
-                error={errors.username}
-                placeholder="contoh: pelanggan_baru"
-              />
-              <InputField
-                label="Email"
-                value={form.email}
-                onChange={(v) => setForm({ ...form, email: v })}
-                error={errors.email}
-                placeholder="pelanggan@example.com"
-                type="email"
-              />
-            </div>
-
-            <div style={{ height: 1, background: "rgba(159,110,245,0.1)", margin: "4px 0 14px" }} />
-            <p style={{ margin: "0 0 12px", fontSize: 12, color: "#9b8ec4" }}>
-              Password (kosongkan jika tidak ingin mengubah)
-            </p>
-
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 14px" }}>
-              <InputField
-                label="Password Baru"
-                value={form.password}
-                onChange={(v) => setForm({ ...form, password: v })}
-                error={errors.password}
-                placeholder="Password baru"
-                type="password"
-              />
-              <InputField
-                label="Konfirmasi Password"
-                value={form.password_confirmation}
-                onChange={(v) =>
-                  setForm({ ...form, password_confirmation: v })
-                }
-                error={errors.password_confirmation}
-                placeholder="Konfirmasi password"
-                type="password"
-              />
-            </div>
-
-            <div style={{ display: "flex", gap: 10, marginTop: 20 }}>
-              <button
-                onClick={() => setShowEditModal(false)}
-                style={{
-                  flex: 1,
-                  padding: "11px 0",
-                  borderRadius: 10,
-                  border: "1px solid rgba(159,110,245,0.25)",
-                  background: "transparent",
-                  color: "#c9aff5",
-                  fontSize: 13.5,
-                  fontWeight: 600,
-                  cursor: "pointer",
-                }}
-              >
-                Batal
-              </button>
-              <button
-                onClick={handleEdit}
-                disabled={submitting}
-                style={{
-                  flex: 1,
-                  padding: "11px 0",
-                  borderRadius: 10,
-                  background: "linear-gradient(135deg, #5b2faa, #9f6ef5)",
-                  border: "none",
-                  color: "white",
-                  fontSize: 13.5,
-                  fontWeight: 600,
-                  cursor: submitting ? "not-allowed" : "pointer",
-                  opacity: submitting ? 0.6 : 1,
-                }}
-              >
-                {submitting ? "Menyimpan..." : "Update Pelanggan"}
-              </button>
-            </div>
           </div>
-        </div>
+
+          <SelectField
+            label="Role"
+            value={form.role}
+            onChange={(v) => setForm({ ...form, role: v as RoleType })}
+            error={errors.role}
+            options={[
+              { label: "Admin", value: "admin" },
+              { label: "Pelanggan", value: "pelanggan" },
+            ]}
+          />
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 14px" }}>
+            <InputField
+              label="Password"
+              value={form.password}
+              onChange={(v) => setForm({ ...form, password: v })}
+              error={errors.password}
+              placeholder="Masukkan password"
+              type="password"
+            />
+            <InputField
+              label="Konfirmasi Password"
+              value={form.password_confirmation}
+              onChange={(v) => setForm({ ...form, password_confirmation: v })}
+              error={errors.password_confirmation}
+              placeholder="Ulangi password"
+              type="password"
+            />
+          </div>
+
+          <ModalActions
+            onCancel={() => setShowAddModal(false)}
+            onSubmit={handleAdd}
+            submitting={submitting}
+            cancelLabel="Batal"
+            submitLabel="Simpan Pengguna"
+          />
+        </ModalWrapper>
       )}
 
-      {showDeleteModal && selectedPelanggan && (
-        <div
-          onClick={() => !deleting && setShowDeleteModal(false)}
-          style={{
-            position: "fixed",
-            inset: 0,
-            zIndex: 100,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            background: "rgba(0,0,0,0.65)",
-            backdropFilter: "blur(6px)",
-          }}
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            style={{
-              background: "#1e1040",
-              border: "1px solid rgba(159,110,245,0.25)",
-              borderRadius: 20,
-              padding: "28px",
-              width: 340,
-              boxShadow: "0 24px 60px rgba(0,0,0,0.5)",
-            }}
-          >
-            <h2 style={{ margin: "0 0 6px", fontSize: 16, fontWeight: 700, color: "#f0eaff" }}>
-              Hapus Pelanggan?
-            </h2>
-            <p style={{ margin: "0 0 24px", fontSize: 13.5, color: "#9b8ec4", lineHeight: 1.6 }}>
-              Akun <strong style={{ color: "#f0eaff" }}>{selectedPelanggan.name}</strong> akan dihapus permanen dan tidak bisa dikembalikan.
-            </p>
+      {showEditModal && selectedUser && (
+        <ModalWrapper onClose={() => setShowEditModal(false)}>
+          <h2 style={modalTitleStyle}>Edit Pengguna</h2>
 
-            <div style={{ display: "flex", gap: 10 }}>
-              <button
-                onClick={() => setShowDeleteModal(false)}
-                disabled={deleting}
-                style={{
-                  flex: 1,
-                  padding: "10px 0",
-                  borderRadius: 10,
-                  border: "1px solid rgba(159,110,245,0.25)",
-                  background: "transparent",
-                  color: "#c9aff5",
-                  fontSize: 13.5,
-                  fontWeight: 600,
-                  cursor: "pointer",
-                }}
-              >
-                Batal
-              </button>
-              <button
-                onClick={handleDelete}
-                disabled={deleting}
-                style={{
-                  flex: 1,
-                  padding: "10px 0",
-                  borderRadius: 10,
-                  border: "1px solid rgba(248,113,113,0.3)",
-                  background: "rgba(248,113,113,0.15)",
-                  color: "#f87171",
-                  fontSize: 13.5,
-                  fontWeight: 600,
-                  cursor: deleting ? "not-allowed" : "pointer",
-                  opacity: deleting ? 0.6 : 1,
-                }}
-              >
-                {deleting ? "Menghapus..." : "Ya, Hapus"}
-              </button>
-            </div>
+          <InputField
+            label="Nama Lengkap"
+            value={form.name}
+            onChange={(v) => setForm({ ...form, name: v })}
+            error={errors.name}
+            placeholder="Masukkan nama lengkap"
+          />
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 14px" }}>
+            <InputField
+              label="Username"
+              value={form.username}
+              onChange={(v) => setForm({ ...form, username: v })}
+              error={errors.username}
+              placeholder="contoh: admin_baru"
+            />
+            <InputField
+              label="Email"
+              value={form.email}
+              onChange={(v) => setForm({ ...form, email: v })}
+              error={errors.email}
+              placeholder="user@example.com"
+              type="email"
+            />
           </div>
-        </div>
+
+          <SelectField
+            label="Role"
+            value={form.role}
+            onChange={(v) => setForm({ ...form, role: v as RoleType })}
+            error={errors.role}
+            options={[
+              { label: "Admin", value: "admin" },
+              { label: "Pelanggan", value: "pelanggan" },
+            ]}
+          />
+
+          <div style={{ height: 1, background: "rgba(159,110,245,0.1)", margin: "4px 0 14px" }} />
+          <p style={{ margin: "0 0 12px", fontSize: 12, color: "#9b8ec4" }}>
+            Password (kosongkan jika tidak ingin mengubah)
+          </p>
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 14px" }}>
+            <InputField
+              label="Password Baru"
+              value={form.password}
+              onChange={(v) => setForm({ ...form, password: v })}
+              error={errors.password}
+              placeholder="Password baru"
+              type="password"
+            />
+            <InputField
+              label="Konfirmasi Password"
+              value={form.password_confirmation}
+              onChange={(v) => setForm({ ...form, password_confirmation: v })}
+              error={errors.password_confirmation}
+              placeholder="Konfirmasi password"
+              type="password"
+            />
+          </div>
+
+          <ModalActions
+            onCancel={() => setShowEditModal(false)}
+            onSubmit={handleEdit}
+            submitting={submitting}
+            cancelLabel="Batal"
+            submitLabel="Update Pengguna"
+          />
+        </ModalWrapper>
       )}
+
+      {showDeleteModal && selectedUser && (
+        <ModalWrapper onClose={() => !deleting && setShowDeleteModal(false)} width={340}>
+          <h2 style={modalTitleStyle}>Hapus Pengguna?</h2>
+          <p style={{ margin: "0 0 24px", fontSize: 13.5, color: "#9b8ec4", lineHeight: 1.6 }}>
+            Akun <strong style={{ color: "#f0eaff" }}>{selectedUser.name}</strong> akan dihapus
+            permanen dan tidak bisa dikembalikan.
+          </p>
+
+          <div style={{ display: "flex", gap: 10 }}>
+            <button
+              onClick={() => setShowDeleteModal(false)}
+              disabled={deleting}
+              style={secondaryButtonStyle}
+            >
+              Batal
+            </button>
+            <button
+              onClick={handleDelete}
+              disabled={deleting}
+              style={{
+                ...dangerButtonStyle,
+                cursor: deleting ? "not-allowed" : "pointer",
+                opacity: deleting ? 0.6 : 1,
+              }}
+            >
+              {deleting ? "Menghapus..." : "Ya, Hapus"}
+            </button>
+          </div>
+        </ModalWrapper>
+      )}
+    </div>
+  );
+}
+
+function ModalWrapper({
+  children,
+  onClose,
+  width = 460,
+}: {
+  children: React.ReactNode;
+  onClose: () => void;
+  width?: number;
+}) {
+  return (
+    <div
+      onClick={(e) => e.target === e.currentTarget && onClose()}
+      style={{
+        position: "fixed",
+        inset: 0,
+        zIndex: 100,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        background: "rgba(0,0,0,0.65)",
+        backdropFilter: "blur(6px)",
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: "#1e1040",
+          border: "1px solid rgba(159,110,245,0.25)",
+          borderRadius: 20,
+          padding: "28px",
+          width,
+          boxShadow: "0 24px 60px rgba(0,0,0,0.5)",
+        }}
+      >
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function ModalActions({
+  onCancel,
+  onSubmit,
+  submitting,
+  cancelLabel,
+  submitLabel,
+}: {
+  onCancel: () => void;
+  onSubmit: () => void;
+  submitting: boolean;
+  cancelLabel: string;
+  submitLabel: string;
+}) {
+  return (
+    <div style={{ display: "flex", gap: 10, marginTop: 20 }}>
+      <button onClick={onCancel} style={secondaryButtonStyle}>
+        {cancelLabel}
+      </button>
+      <button
+        onClick={onSubmit}
+        disabled={submitting}
+        style={{
+          ...primaryButtonStyle,
+          cursor: submitting ? "not-allowed" : "pointer",
+          opacity: submitting ? 0.6 : 1,
+        }}
+      >
+        {submitting ? "Menyimpan..." : submitLabel}
+      </button>
     </div>
   );
 }
@@ -1128,10 +1135,107 @@ function InputField({
         }}
       />
       {error && (
-        <p style={{ margin: "4px 0 0", fontSize: 11.5, color: "#f87171" }}>
-          {error}
-        </p>
+        <p style={{ margin: "4px 0 0", fontSize: 11.5, color: "#f87171" }}>{error}</p>
       )}
     </div>
   );
 }
+
+function SelectField({
+  label,
+  value,
+  onChange,
+  error,
+  options,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  error?: string;
+  options: { label: string; value: string }[];
+}) {
+  return (
+    <div style={{ marginBottom: 16 }}>
+      <label
+        style={{
+          display: "block",
+          fontSize: 12,
+          fontWeight: 600,
+          color: "#9b8ec4",
+          marginBottom: 7,
+          letterSpacing: "0.04em",
+          textTransform: "uppercase",
+        }}
+      >
+        {label}
+      </label>
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        style={{
+          width: "100%",
+          padding: "10px 14px",
+          borderRadius: 10,
+          fontSize: 14,
+          background: "rgba(255,255,255,0.04)",
+          border: `1px solid ${
+            error ? "rgba(248,113,113,0.5)" : "rgba(159,110,245,0.2)"
+          }`,
+          color: "#f0eaff",
+          outline: "none",
+          boxSizing: "border-box",
+        }}
+      >
+        {options.map((opt) => (
+          <option key={opt.value} value={opt.value} style={{ background: "#1e1040" }}>
+            {opt.label}
+          </option>
+        ))}
+      </select>
+      {error && (
+        <p style={{ margin: "4px 0 0", fontSize: 11.5, color: "#f87171" }}>{error}</p>
+      )}
+    </div>
+  );
+}
+
+const modalTitleStyle: React.CSSProperties = {
+  margin: "0 0 20px",
+  fontSize: 16,
+  fontWeight: 700,
+  color: "#f0eaff",
+};
+
+const primaryButtonStyle: React.CSSProperties = {
+  flex: 1,
+  padding: "11px 0",
+  borderRadius: 10,
+  background: "linear-gradient(135deg, #5b2faa, #9f6ef5)",
+  border: "none",
+  color: "white",
+  fontSize: 13.5,
+  fontWeight: 600,
+};
+
+const secondaryButtonStyle: React.CSSProperties = {
+  flex: 1,
+  padding: "11px 0",
+  borderRadius: 10,
+  border: "1px solid rgba(159,110,245,0.25)",
+  background: "transparent",
+  color: "#c9aff5",
+  fontSize: 13.5,
+  fontWeight: 600,
+  cursor: "pointer",
+};
+
+const dangerButtonStyle: React.CSSProperties = {
+  flex: 1,
+  padding: "10px 0",
+  borderRadius: 10,
+  border: "1px solid rgba(248,113,113,0.3)",
+  background: "rgba(248,113,113,0.15)",
+  color: "#f87171",
+  fontSize: 13.5,
+  fontWeight: 600,
+};

@@ -10,6 +10,7 @@ export function ProductPicker({
   onProductKeywordChange,
   onAddToCart,
   onChangeQty,
+  disabled = false,
 }: {
   filteredProdukKasir: Produk[];
   cart: CartItem[];
@@ -17,6 +18,7 @@ export function ProductPicker({
   onProductKeywordChange: (value: string) => void;
   onAddToCart: (produk: Produk) => void;
   onChangeQty: (id_produk: number, delta: number) => void;
+  disabled?: boolean;
 }) {
   return (
     <div style={panelStyle}>
@@ -28,6 +30,7 @@ export function ProductPicker({
         value={productKeyword}
         onChange={(e) => onProductKeywordChange(e.target.value)}
         style={{ ...inputStyle, marginBottom: 14 }}
+        disabled={disabled}
       />
 
       <div
@@ -43,14 +46,17 @@ export function ProductPicker({
         {filteredProdukKasir.map((produk) => (
           <button
             key={produk.id_produk}
+            type="button"
             onClick={() => onAddToCart(produk)}
+            disabled={disabled}
             style={{
               textAlign: "left",
               padding: 12,
               borderRadius: 12,
               border: "1px solid rgba(159,110,245,0.15)",
               background: "rgba(255,255,255,0.03)",
-              cursor: "pointer",
+              cursor: disabled ? "not-allowed" : "pointer",
+              opacity: disabled ? 0.6 : 1,
               color: "#f0eaff",
             }}
           >
@@ -94,13 +100,33 @@ export function ProductPicker({
               </div>
 
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <button onClick={() => onChangeQty(item.id_produk, -1)} style={qtyBtnStyle}>
+                <button
+                  type="button"
+                  onClick={() => onChangeQty(item.id_produk, -1)}
+                  style={{
+                    ...qtyBtnStyle,
+                    opacity: disabled ? 0.6 : 1,
+                    cursor: disabled ? "not-allowed" : "pointer",
+                  }}
+                  disabled={disabled}
+                >
                   -
                 </button>
+
                 <span style={{ minWidth: 24, textAlign: "center", color: "#f0eaff" }}>
                   {item.qty}
                 </span>
-                <button onClick={() => onChangeQty(item.id_produk, 1)} style={qtyBtnStyle}>
+
+                <button
+                  type="button"
+                  onClick={() => onChangeQty(item.id_produk, 1)}
+                  style={{
+                    ...qtyBtnStyle,
+                    opacity: disabled ? 0.6 : 1,
+                    cursor: disabled ? "not-allowed" : "pointer",
+                  }}
+                  disabled={disabled}
+                >
                   +
                 </button>
               </div>

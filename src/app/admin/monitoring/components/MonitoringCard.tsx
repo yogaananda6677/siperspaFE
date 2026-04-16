@@ -1,5 +1,11 @@
 import type { MonitoringPlaystation } from "@/lib/api";
-import { findActiveSewaForPs, getCountdownText, isExpired, STATUS_CONFIG } from "../lib/helpers";
+import {
+  findActiveSewaForPs,
+  formatJam,
+  getCountdownText,
+  isExpired,
+  STATUS_CONFIG,
+} from "../lib/helpers";
 
 export function MonitoringCard({
   item,
@@ -12,6 +18,28 @@ export function MonitoringCard({
 }) {
   const cfg = STATUS_CONFIG[item.status_ps];
   const sewaAktif = findActiveSewaForPs(item.active_transaksi, item.id_ps);
+
+  const subtitle =
+    item.status_ps === "maintenance"
+      ? "Sedang maintenance"
+      : item.status_ps === "tersedia"
+      ? "Siap dipakai"
+      : sewaAktif?.jam_selesai
+      ? isExpired(sewaAktif.jam_selesai, nowTick)
+        ? "Waktu habis - pilih aksi"
+        : `Sisa ${getCountdownText(sewaAktif.jam_selesai, nowTick)}`
+      : item.active_transaksi
+      ? `Ref Transaksi #${item.active_transaksi.id_transaksi}`
+      : "Sedang digunakan";
+
+  const footer =
+    item.status_ps === "digunakan" && sewaAktif?.jam_selesai
+      ? `Berakhir ${formatJam(sewaAktif.jam_selesai)}`
+      : item.status_ps === "tersedia"
+      ? "Siap dipakai"
+      : item.status_ps === "maintenance"
+      ? "Tidak tersedia"
+      : "";
 
   return (
     <button
@@ -57,25 +85,23 @@ export function MonitoringCard({
         <span style={{ fontSize: 20 }}>🎮</span>
       </div>
 
-      <div style={{ fontSize: 18, fontWeight: 700, color: "#f0eaff" }}>{item.nomor_ps}</div>
+      <div style={{ fontSize: 18, fontWeight: 700, color: "#f0eaff" }}>
+        {item.nomor_ps}
+      </div>
 
       <div style={{ fontSize: 12.5, color: "#b9a8e9", marginTop: 4 }}>
         {item.tipe?.nama_tipe ?? "-"}
       </div>
 
-      <div style={{ marginTop: 12, fontSize: 12, color: "#9b8ec4" }}>
-        {item.status_ps === "maintenance"
-          ? "Sedang maintenance"
-          : item.status_ps === "tersedia"
-            ? "Siap dipakai"
-            : sewaAktif?.jam_selesai
-              ? isExpired(sewaAktif.jam_selesai, nowTick)
-                ? "Waktu habis - pilih aksi"
-                : `Sisa ${getCountdownText(sewaAktif.jam_selesai, nowTick)}`
-              : item.active_transaksi
-                ? `Ref Transaksi #${item.active_transaksi.id_transaksi}`
-                : "Sedang digunakan"}
+      <div style={{ marginTop: 12, fontSize: 13, color: "#cbbbf9", fontWeight: 600 }}>
+        {subtitle}
       </div>
+
+      {footer ? (
+        <div style={{ marginTop: 6, fontSize: 12, color: "#9b8ec4" }}>
+          {footer}
+        </div>
+      ) : null}
     </button>
   );
 }

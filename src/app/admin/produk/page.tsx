@@ -18,7 +18,7 @@ type FormState = {
   stock: string;
 };
 
-type ModalMode = "tambah" | "edit" | null;
+type ModalMode = "tambah" | "ubah" | null;
 type StockModal = { produk: Produk; aksi: "tambah" | "kurangi" } | null;
 
 // ─── Utils ───────────────────────────────────────────────────────────────────
@@ -140,7 +140,7 @@ export default function ProdukPage() {
     });
     setFormError(null);
     setEditId(item.id_produk);
-    setModalMode("edit");
+    setModalMode("ubah");
   };
 
   const closeModal = () => { setModalMode(null); setFormError(null); };
@@ -168,7 +168,7 @@ export default function ProdukPage() {
         const created = await createProduk(payload);
         setData(prev => [...prev, created]);
         showToast("Produk berhasil ditambahkan.", "success");
-      } else if (modalMode === "edit" && editId !== null) {
+      } else if (modalMode === "ubah" && editId !== null) {
         const updated = await updateProduk(editId, payload);
         setData(prev => prev.map(d => d.id_produk === editId ? updated : d));
         showToast("Produk berhasil diupdate.", "success");
@@ -483,7 +483,7 @@ export default function ProdukPage() {
                           <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                             <path d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" strokeLinecap="round" strokeLinejoin="round" />
                           </svg>
-                          Edit
+                          Ubah
                         </button>
                         <button onClick={() => setDeleteTarget(item)}
                           style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 14px", borderRadius: 8, background: "rgba(248,113,113,0.08)", border: "1px solid rgba(248,113,113,0.2)", color: "#f87171", fontSize: 12.5, fontWeight: 500, cursor: "pointer", transition: "all 0.15s" }}
@@ -534,7 +534,7 @@ export default function ProdukPage() {
         <div onClick={closeModal} style={{ position: "fixed", inset: 0, zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,0.65)", backdropFilter: "blur(6px)" }}>
           <div onClick={e => e.stopPropagation()} style={{ background: "#1e1040", border: "1px solid rgba(159,110,245,0.25)", borderRadius: 20, padding: "28px", width: 440, boxShadow: "0 24px 60px rgba(0,0,0,0.5)" }}>
             <h2 style={{ margin: "0 0 20px", fontSize: 16, fontWeight: 700, color: "#f0eaff" }}>
-              {modalMode === "tambah" ? "Tambah Produk" : "Edit Produk"}
+              {modalMode === "tambah" ? "Tambah Produk" : "Ubah Produk"}
             </h2>
             {formError && (
               <div style={{ padding: "10px 14px", borderRadius: 10, marginBottom: 16, background: "rgba(248,113,113,0.1)", border: "1px solid rgba(248,113,113,0.25)", color: "#f87171", fontSize: 13 }}>{formError}</div>

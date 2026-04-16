@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState } from "react";
 import {
-  type MonitoringDetailSewa,
   type MonitoringPlaystation,
   type MonitoringTransaksi,
   type Pelanggan,
@@ -15,8 +14,13 @@ import {
   selesaikanTransaksi,
   tambahProdukKeTransaksi,
   tambahWaktuTransaksi,
+  type CreateTransaksiPayload,
 } from "@/lib/api";
-import { formatDateTimeLocal, hitungSubtotalSewaTampil , toLaravelDateTime} from "../lib/helpers";
+import {
+  formatDateTimeLocal,
+  hitungSubtotalSewaTampil,
+  toLaravelDateTime,
+} from "../lib/helpers";
 import type {
   ActiveTab,
   CartItem,
@@ -25,17 +29,14 @@ import type {
   ToastState,
 } from "../lib/types";
 
-
-
 export function useMonitoringPage() {
   const [data, setData] = useState<MonitoringPlaystation[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
-  const [selected, setSelected] = useState<MonitoringPlaystation | null>(null);
+  const [selectedIdPs, setSelectedIdPs] = useState<number | null>(null);
   const [receiptData, setReceiptData] = useState<MonitoringTransaksi | null>(null);
   const [activeTab, setActiveTab] = useState<ActiveTab>("sewa");
-
 
   const [search, setSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState<FilterStatus>("semua");
@@ -55,17 +56,25 @@ export function useMonitoringPage() {
   const [submittingTambahProduk, setSubmittingTambahProduk] = useState(false);
   const [submittingSelesai, setSubmittingSelesai] = useState(false);
   const [submittingTambahWaktu, setSubmittingTambahWaktu] = useState(false);
+  const [submittingBayar, setSubmittingBayar] = useState(false);
+  const [isMutating, setIsMutating] = useState(false);
 
   const [nowTick, setNowTick] = useState(Date.now());
-  const [metodePembayaran, setMetodePembayaran] = useState<"cash" | "online">("cash");
-const [jumlahBayar, setJumlahBayar] = useState("");
-const [submittingBayar, setSubmittingBayar] = useState(false);
-const pembayaranAktif = selected?.active_transaksi?.pembayaran ?? null;
-const sudahLunas = pembayaranAktif?.status_bayar === "lunas";
-const totalAktif = Number(selected?.active_transaksi?.total_harga || 0);
-const nominalBayar = Number(jumlahBayar || 0);
-const kembalianCash = Math.max(0, nominalBayar - totalAktif);
 
+  const [metodePembayaran, setMetodePembayaran] = useState<"cash" | "online">("cash");
+  const [jumlahBayar, setJumlahBayar] = useState("");
+
+  const selected = useMemo(
+    () => data.find((item) => item.id_ps === selectedIdPs) ?? null,
+    [data, selectedIdPs]
+  );
+
+  const pembayaranAktif = selected?.active_transaksi?.pembayaran ?? null;
+  const sudahLunas = pembayaranAktif?.status_bayar === "lunas";
+  const totalAktif = Number(selected?.active_transaksi?.total_harga || 0);
+  const nominalBayar =
+    metodePembayaran === "online" ? totalAktif : Number(jumlahBayar || 0);
+  const kembalianCash = Math.max(0, nominalBayar - totalAktif);
 
   const showToast = (msg: string, type: "success" | "error") => {
     setToast({ msg, type });
@@ -85,10 +94,9 @@ const kembalianCash = Math.max(0, nominalBayar - totalAktif);
       const res = await getMonitoringPlaystation();
       setData(res);
 
-      setSelected((prev) => {
-        if (!prev) return prev;
-        return res.find((item) => item.id_ps === prev.id_ps) ?? null;
-      });
+      if (selectedIdPs !== null && !res.some((item) => item.id_ps === selectedIdPs)) {
+        setSelectedIdPs(null);
+      }
 
       return res;
     } catch (e) {
@@ -137,14 +145,18 @@ const kembalianCash = Math.max(0, nominalBayar - totalAktif);
 
   useEffect(() => {
     const id = window.setInterval(() => {
-      void fetchAll({ silent: true });
-    }, 5000);
+      if (!isMutating) {
+        void fetchAll({ silent: true });
+      }
+    }, 10000);
 
     return () => window.clearInterval(id);
-  }, []);
+  }, [isMutating, selectedIdPs]);
 
   const openModal = (item: MonitoringPlaystation) => {
-    setSelected(item);
+    if (isMutating) return;
+
+    setSelectedIdPs(item.id_ps);
     setActiveTab("sewa");
     setSelectedUserId("");
     setJamMulai(formatDateTimeLocal());
@@ -152,12 +164,18 @@ const kembalianCash = Math.max(0, nominalBayar - totalAktif);
     setMenitTambahan(30);
     setCart([]);
     setProductKeyword("");
+    setMetodePembayaran("cash");
+    setJumlahBayar("");
   };
 
   const closeModal = () => {
-    setSelected(null);
+    if (isMutating) return;
+
+    setSelectedIdPs(null);
     setCart([]);
     setProductKeyword("");
+    setJumlahBayar("");
+    setMetodePembayaran("cash");
   };
 
   const filteredData = useMemo(() => {
@@ -207,6 +225,8 @@ const kembalianCash = Math.max(0, nominalBayar - totalAktif);
   }, [produkList, productKeyword]);
 
   const addToCart = (produk: Produk) => {
+    if (isMutating) return;
+
     setCart((prev) => {
       const existing = prev.find((item) => item.id_produk === produk.id_produk);
 
@@ -234,6 +254,8 @@ const kembalianCash = Math.max(0, nominalBayar - totalAktif);
   };
 
   const changeQty = (id_produk: number, delta: number) => {
+    if (isMutating) return;
+
     setCart((prev) =>
       prev
         .map((item) =>
@@ -243,40 +265,8 @@ const kembalianCash = Math.max(0, nominalBayar - totalAktif);
     );
   };
 
-  const syncSelectedTransaksi = (updatedTransaksi: MonitoringTransaksi, idPs: number) => {
-    setData((prev) =>
-      prev.map((item) =>
-        item.id_ps === idPs
-          ? {
-              ...item,
-              status_ps:
-                updatedTransaksi.status_transaksi === "selesai"
-                  ? "tersedia"
-                  : "digunakan",
-              active_transaksi:
-                updatedTransaksi.status_transaksi === "selesai"
-                  ? null
-                  : updatedTransaksi,
-            }
-          : item
-      )
-    );
-
-    setSelected((prev) => {
-      if (!prev || prev.id_ps !== idPs) return prev;
-
-      return {
-        ...prev,
-        status_ps:
-          updatedTransaksi.status_transaksi === "selesai" ? "tersedia" : "digunakan",
-        active_transaksi:
-          updatedTransaksi.status_transaksi === "selesai" ? null : updatedTransaksi,
-      };
-    });
-  };
-
   const handleCreateTransaksi = async () => {
-    if (!selected) return;
+    if (!selected || isMutating) return;
 
     if (!selectedUserId) {
       showToast("Pilih pelanggan terlebih dahulu.", "error");
@@ -288,11 +278,13 @@ const kembalianCash = Math.max(0, nominalBayar - totalAktif);
       return;
     }
 
+    setIsMutating(true);
     setSubmittingCreate(true);
 
     try {
-      const payload = {
+      const payload: CreateTransaksiPayload = {
         id_user: Number(selectedUserId),
+        sumber_transaksi: "admin",
         sewa: [
           {
             id_ps: selected.id_ps,
@@ -307,15 +299,15 @@ const kembalianCash = Math.max(0, nominalBayar - totalAktif);
         })),
       };
 
-      const created = await createTransaksi(payload);
+      await createTransaksi(payload);
+      await fetchAll({ silent: true });
 
       showToast("Transaksi berhasil dibuat.", "success");
-      syncSelectedTransaksi(created, selected.id_ps);
       setActiveTab("sewa");
       setCart([]);
       setProductKeyword("");
-
-      await fetchAll({ silent: true });
+      setJumlahBayar("");
+      setMetodePembayaran("cash");
     } catch (e) {
       showToast(
         e instanceof Error ? e.message : "Gagal membuat transaksi.",
@@ -323,37 +315,40 @@ const kembalianCash = Math.max(0, nominalBayar - totalAktif);
       );
     } finally {
       setSubmittingCreate(false);
+      setIsMutating(false);
     }
   };
 
   const handleTambahProduk = async () => {
+    if (isMutating) return;
+
     if (!selected?.active_transaksi || cart.length === 0) {
       showToast("Tambahkan produk terlebih dahulu.", "error");
       return;
     }
-    
-    if (selected.active_transaksi?.pembayaran?.status_bayar === "lunas") {
-    showToast("Transaksi yang sudah lunas tidak bisa diubah.", "error");
-    return;
+
+    if (selected.active_transaksi.pembayaran?.status_bayar === "lunas") {
+      showToast("Transaksi yang sudah lunas tidak bisa diubah.", "error");
+      return;
     }
 
+    setIsMutating(true);
     setSubmittingTambahProduk(true);
 
     try {
-      const updated = await tambahProdukKeTransaksi(selected.active_transaksi.id_transaksi, {
+      await tambahProdukKeTransaksi(selected.active_transaksi.id_transaksi, {
         produk: cart.map((item) => ({
           id_produk: item.id_produk,
           qty: item.qty,
         })),
       });
 
+      await fetchAll({ silent: true });
+
       showToast("Produk berhasil ditambahkan.", "success");
-      syncSelectedTransaksi(updated, selected.id_ps);
       setCart([]);
       setProductKeyword("");
       setActiveTab("produk");
-
-      await fetchAll({ silent: true });
     } catch (e) {
       showToast(
         e instanceof Error ? e.message : "Gagal menambahkan produk.",
@@ -361,87 +356,96 @@ const kembalianCash = Math.max(0, nominalBayar - totalAktif);
       );
     } finally {
       setSubmittingTambahProduk(false);
+      setIsMutating(false);
     }
   };
 
   const handleTambahWaktu = async () => {
-    if (!selected?.active_transaksi) return;
+    if (!selected?.active_transaksi || isMutating) return;
 
-    if (selected.active_transaksi?.pembayaran?.status_bayar === "lunas") {
-    showToast("Transaksi yang sudah lunas tidak bisa diubah.", "error");
-    return;
+    if (selected.active_transaksi.pembayaran?.status_bayar === "lunas") {
+      showToast("Transaksi yang sudah lunas tidak bisa diubah.", "error");
+      return;
     }
 
+    setIsMutating(true);
     setSubmittingTambahWaktu(true);
 
     try {
-      const updated = await tambahWaktuTransaksi(selected.active_transaksi.id_transaksi, {
+      await tambahWaktuTransaksi(selected.active_transaksi.id_transaksi, {
         menit_tambahan: menitTambahan,
         id_ps: selected.id_ps,
       });
 
-      showToast("Waktu sewa berhasil ditambahkan.", "success");
-      syncSelectedTransaksi(updated, selected.id_ps);
-      setActiveTab("sewa");
-
       await fetchAll({ silent: true });
+
+      showToast("Waktu sewa berhasil ditambahkan.", "success");
+      setActiveTab("sewa");
     } catch (e) {
       showToast(e instanceof Error ? e.message : "Gagal menambah waktu.", "error");
     } finally {
       setSubmittingTambahWaktu(false);
+      setIsMutating(false);
     }
   };
+
   const handleBayar = async () => {
-  if (!selected?.active_transaksi) return;
+    if (!selected?.active_transaksi || isMutating) return;
 
-  if (sudahLunas) {
-    showToast("Transaksi ini sudah lunas.", "success");
-    return;
-  }
+    if (sudahLunas) {
+      showToast("Transaksi ini sudah lunas.", "success");
+      return;
+    }
 
-  if (metodePembayaran === "cash" && nominalBayar < totalAktif) {
-    showToast("Nominal pembayaran cash kurang dari total tagihan.", "error");
-    return;
-  }
+    if (metodePembayaran === "cash" && nominalBayar < totalAktif) {
+      showToast("Nominal pembayaran cash kurang dari total tagihan.", "error");
+      return;
+    }
 
-  setSubmittingBayar(true);
+    setIsMutating(true);
+    setSubmittingBayar(true);
 
-  try {
-    const updated = await bayarTransaksi(selected.active_transaksi.id_transaksi, {
-      metode_pembayaran: metodePembayaran,
-      total_bayar: metodePembayaran === "cash" ? nominalBayar : totalAktif,
-    });
+    try {
+      await bayarTransaksi(selected.active_transaksi.id_transaksi, {
+        metode_pembayaran: metodePembayaran,
+        total_bayar: metodePembayaran === "cash" ? nominalBayar : totalAktif,
+      });
 
-    showToast("Pembayaran berhasil disimpan.", "success");
-    syncSelectedTransaksi(updated, selected.id_ps);
-    setActiveTab("pembayaran");
+      await fetchAll({ silent: true });
 
-    await fetchAll({ silent: true });
-  } catch (e) {
-    showToast(e instanceof Error ? e.message : "Gagal menyimpan pembayaran.", "error");
-  } finally {
-    setSubmittingBayar(false);
-  }
-};
+      showToast("Pembayaran berhasil disimpan.", "success");
+      setActiveTab("pembayaran");
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : "Gagal menyimpan pembayaran.", "error");
+    } finally {
+      setSubmittingBayar(false);
+      setIsMutating(false);
+    }
+  };
 
   const handleSelesaikan = async () => {
-    if (!selected?.active_transaksi) return;
-    if (selected.active_transaksi.pembayaran?.status_bayar !== "lunas") {
-  showToast("Selesaikan transaksi setelah pembayaran lunas.", "error");
-  return;
-}
+    if (!selected?.active_transaksi || isMutating) return;
 
+    if (selected.active_transaksi.pembayaran?.status_bayar !== "lunas") {
+      showToast("Selesaikan transaksi setelah pembayaran lunas.", "error");
+      return;
+    }
+
+    setIsMutating(true);
     setSubmittingSelesai(true);
 
     try {
       const result = await selesaikanTransaksi(selected.active_transaksi.id_transaksi);
 
-      showToast("Transaksi berhasil diselesaikan.", "success");
       setReceiptData(result);
-      syncSelectedTransaksi(result, selected.id_ps);
-      closeModal();
-
       await fetchAll({ silent: true });
+
+      showToast("Transaksi berhasil diselesaikan.", "success");
+      setSelectedIdPs(null);
+      setCart([]);
+      setProductKeyword("");
+      setJumlahBayar("");
+      setMetodePembayaran("cash");
     } catch (e) {
       showToast(
         e instanceof Error ? e.message : "Gagal menyelesaikan transaksi.",
@@ -449,6 +453,7 @@ const kembalianCash = Math.max(0, nominalBayar - totalAktif);
       );
     } finally {
       setSubmittingSelesai(false);
+      setIsMutating(false);
     }
   };
 
@@ -509,5 +514,6 @@ const kembalianCash = Math.max(0, nominalBayar - totalAktif);
     totalAktif,
     nominalBayar,
     kembalianCash,
+    isMutating,
   };
 }
