@@ -291,7 +291,7 @@ export type MonitoringPembayaran = {
   total_bayar: number;
   kembalian: number;
   waktu_bayar: string | null;
-  status_bayar: "menuggu" | "lunas" | "gagal";
+  status_bayar: "menuggu" | "lunas" | "gagal" | "menunggu_validasi";
 };
 
 export type BayarTransaksiPayload = {
@@ -306,10 +306,12 @@ function getToken(): string | null {
 }
 
 function authHeaders(): HeadersInit {
+  const token = getToken();
+
   return {
     "Content-Type": "application/json",
     Accept: "application/json",
-    Authorization: `Bearer ${getToken()}`,
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
   };
 }
 
@@ -1018,4 +1020,209 @@ export async function deleteUser(
   }
 
   await deletePelanggan(id);
+}
+
+
+export type CashPendingItem = {
+  id_transaksi: number;
+  tanggal: string;
+  total_harga: number;
+  status_transaksi: string;
+  sumber_transaksi?: string;
+
+  user?: {
+    id_user: number;
+    name: string;
+    username: string;
+    email: string;
+  } | null;
+
+  pembayaran?: {
+    id_pembayaran?: number;
+    metode_pembayaran?: "cash" | "online" | string;
+    total_bayar?: number;
+    kembalian?: number;
+    waktu_bayar?: string | null;
+    status_bayar?: string;
+  } | null;
+
+  detail_sewa?: {
+    id_dt_booking?: number;
+    id_ps?: number;
+    jam_mulai?: string;
+    jam_selesai?: string | null;
+    durasi_menit?: number | null;
+    playstation?: {
+      id_ps?: number;
+      nomor_ps?: string;
+      status_ps?: string;
+      tipe?: {
+        id_tipe?: number;
+        nama_tipe?: string;
+      } | null;
+    } | null;
+  }[];
+
+  detail_produk?: {
+    id_dt_produk?: number;
+    qty?: number;
+    subtotal?: number;
+    produk?: {
+      id_produk?: number;
+      nama?: string;
+      harga?: number;
+    } | null;
+  }[];
+};
+
+export async function getCashPendingPayments(): Promise<CashPendingItem[]> {
+  const res = await fetch(`${BASE_URL}/pembayaran/cash-menunggu`, {
+    headers: authHeaders(),
+  });
+
+  const result = await handleResponse<{ data: CashPendingItem[] }>(res);
+  return result.data ?? [];
+}
+
+export async function konfirmasiCashPembayaran(
+  id: number,
+  payload: { total_bayar: number }
+): Promise<{ message: string; data: CashPendingItem }> {
+  const res = await fetch(`${BASE_URL}/pembayaran/${id}/konfirmasi-cash`, {
+    method: "PATCH",
+    headers: authHeaders(),
+    body: JSON.stringify(payload),
+  });
+
+  return handleResponse<{ message: string; data: CashPendingItem }>(res);
+}
+export type AdminDashboardResponse = {
+  message: string;
+  data: {
+    stats: {
+      total_transaksi: number;
+      waiting_approval: number;
+      aktif: number;
+      selesai: number;
+      menunggu_bayar: number;
+      total_omzet: number;
+    };
+    ps_stats: {
+      tersedia: number;
+      digunakan: number;
+      maintenance: number;
+    };
+    cash_pending_count: number;
+    recent_transaksi: {
+      id_transaksi: number;
+      tanggal: string;
+      total_harga: number;
+      status_transaksi: string;
+      sumber_transaksi?: string;
+      user?: {
+        id_user: number;
+        name: string;
+        username: string;
+        email: string;
+      } | null;
+      pembayaran?: {
+        id_pembayaran?: number;
+        metode_pembayaran?: string;
+        total_bayar?: number;
+        kembalian?: number;
+        waktu_bayar?: string | null;
+        status_bayar?: string;
+      } | null;
+      detail_sewa?: {
+        id_dt_booking?: number;
+        id_ps?: number;
+        jam_mulai?: string;
+        jam_selesai?: string | null;
+        durasi_menit?: number | null;
+        playstation?: {
+          id_ps?: number;
+          nomor_ps?: string;
+          status_ps?: string;
+          tipe?: {
+            id_tipe?: number;
+            nama_tipe?: string;
+          } | null;
+        } | null;
+      }[];
+      detail_produk?: {
+        id_detail_produk?: number;
+        qty?: number;
+        subtotal?: number;
+        produk?: {
+          id_produk?: number;
+          nama?: string;
+          harga?: number;
+        } | null;
+      }[];
+    }[];
+    recent_monitoring: {
+      id_ps: number;
+      nomor_ps: string;
+      status_ps: string;
+      tipe?: {
+        id_tipe?: number;
+        nama_tipe?: string;
+        harga_sewa?: number;
+      } | null;
+      active_transaksi?: {
+        id_transaksi?: number;
+        status_transaksi?: string;
+        user?: {
+          id_user?: number;
+          name?: string;
+          username?: string;
+          email?: string;
+        } | null;
+        pembayaran?: {
+          status_bayar?: string;
+        } | null;
+      } | null;
+    }[];
+    cash_pending: {
+      id_transaksi: number;
+      tanggal: string;
+      total_harga: number;
+      status_transaksi: string;
+      user?: {
+        id_user: number;
+        name: string;
+        username: string;
+        email: string;
+      } | null;
+      pembayaran?: {
+        status_bayar?: string;
+        metode_pembayaran?: string;
+      } | null;
+      detail_sewa?: {
+        id_dt_booking?: number;
+        id_ps?: number;
+        jam_mulai?: string;
+        jam_selesai?: string | null;
+        durasi_menit?: number | null;
+        playstation?: {
+          nomor_ps?: string;
+          tipe?: {
+            nama_tipe?: string;
+          } | null;
+        } | null;
+      }[];
+    }[];
+    highlights: {
+      text: string;
+    };
+  };
+};
+
+export async function getAdminDashboard(): Promise<AdminDashboardResponse> {
+  const res = await fetch(`${BASE_URL}/admin/dashboard`, {
+    headers: authHeaders(),
+    cache: "no-store",
+  });
+
+  return handleResponse<AdminDashboardResponse>(res);
 }

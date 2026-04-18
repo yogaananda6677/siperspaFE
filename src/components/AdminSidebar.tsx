@@ -17,10 +17,7 @@ const navItems = [
     href: "/admin/dashboard",
     icon: (
       <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24">
-        <rect x="3" y="3" width="7" height="7" rx="1.5" />
-        <rect x="14" y="3" width="7" height="7" rx="1.5" />
-        <rect x="3" y="14" width="7" height="7" rx="1.5" />
-        <rect x="14" y="14" width="7" height="7" rx="1.5" />
+        <path d="M3 13h8V3H3v10zM13 21h8V11h-8v10zM13 3v6h8V3h-8zM3 21v-6h8v6H3z" />
       </svg>
     ),
   },
@@ -29,28 +26,41 @@ const navItems = [
     href: "/admin/monitoring",
     icon: (
       <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24">
-        <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" strokeLinecap="round" strokeLinejoin="round" />
+        <polyline points="3 17 9 11 13 15 21 7" strokeLinecap="round" strokeLinejoin="round" />
+        <circle cx="3" cy="17" r="1.5" fill="currentColor" />
+        <circle cx="9" cy="11" r="1.5" fill="currentColor" />
+        <circle cx="13" cy="15" r="1.5" fill="currentColor" />
+        <circle cx="21" cy="7" r="1.5" fill="currentColor" />
       </svg>
     ),
   },
-   {
+  {
     label: "Kelola Transaksi",
     href: "/admin/transaksi",
     icon: (
       <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24">
-        <circle cx="9" cy="7" r="4" />
-        <path d="M2 21c0-4 3.1-7 7-7s7 3 7 7" strokeLinecap="round" />
-        <circle cx="17" cy="9" r="3" />
-        <path d="M20.5 20.5c0-2-1.6-3.5-3.5-3.5" strokeLinecap="round" />
+        <rect x="3" y="6" width="18" height="12" rx="2" />
+        <path d="M3 10h18" />
       </svg>
     ),
   },
-   {
-    label: "Approve Booking",
+  {
+    label: "Setujui Booking",
     href: "/admin/approve-booking",
     icon: (
       <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24">
-        <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" strokeLinecap="round" strokeLinejoin="round" />
+        <path d="M8 7h8M8 12h5M8 17h4" strokeLinecap="round" />
+        <circle cx="18" cy="17" r="3" />
+        <path d="M17 17l1 1 2-2" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    ),
+  },
+  {
+    label: "Setujui Pembayaran",
+    href: "/admin/pembayaran",
+    icon: (
+      <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24">
+        <path d="M12 1v22M5 5h9a3 3 0 010 6H9a3 3 0 000 6h10" strokeLinecap="round" />
       </svg>
     ),
   },
@@ -59,54 +69,41 @@ const navItems = [
     href: "/admin/playstation",
     icon: (
       <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24">
-        <rect x="2" y="6" width="20" height="12" rx="3" />
-        <path d="M8 12h4M10 10v4" strokeLinecap="round" />
-        <circle cx="16" cy="11" r="1" fill="currentColor" stroke="none" />
-        <circle cx="16" cy="13" r="1" fill="currentColor" stroke="none" />
+        <rect x="2" y="7" width="20" height="10" rx="3" />
+        <circle cx="8" cy="12" r="1" fill="currentColor" />
+        <circle cx="16" cy="12" r="1" fill="currentColor" />
       </svg>
     ),
   },
   {
     label: "Kelola Produk",
     href: "/admin/produk",
-    icon: <IconFood />,
+    icon: (
+      <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24">
+        <path d="M6 2l1 4h10l1-4" />
+        <path d="M3 6h18l-2 14H5L3 6z" />
+      </svg>
+    ),
   },
   {
     label: "Kelola Tipe PS",
     href: "/admin/tipe-ps",
     icon: (
       <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24">
-        <path d="M4 6h16M4 12h10M4 18h7" strokeLinecap="round" strokeLinejoin="round" />
-        <circle cx="18" cy="17" r="3" />
-        <path d="M18 15v2l1 1" strokeLinecap="round" />
+        <path d="M4 6h16M4 12h10M4 18h7" strokeLinecap="round" />
       </svg>
     ),
   },
   {
-    label: "Kelola Admin",
-    href: "/admin/kelola-admin",
+    label: "Kelola Pengguna",
+    href: "/admin/pengguna",
     icon: (
       <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24">
         <circle cx="12" cy="8" r="4" />
-        <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" strokeLinecap="round" />
-        <path d="M19 3v4M17 5h4" strokeLinecap="round" />
+        <path d="M4 20c0-4 4-6 8-6s8 2 8 6" />
       </svg>
     ),
   },
-  {
-    label: "Kelola Pelanggan",
-    href: "/admin/pelanggan",
-    icon: (
-      <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24">
-        <circle cx="9" cy="7" r="4" />
-        <path d="M2 21c0-4 3.1-7 7-7s7 3 7 7" strokeLinecap="round" />
-        <circle cx="17" cy="9" r="3" />
-        <path d="M20.5 20.5c0-2-1.6-3.5-3.5-3.5" strokeLinecap="round" />
-      </svg>
-    ),
-  },
-
-   
 ];
 
 interface AdminSidebarProps {
@@ -400,7 +397,7 @@ export default function AdminSidebar({ collapsed, setCollapsed }: AdminSidebarPr
           {/* Main Nav */}
           <div className="ps-section-label">Menu Utama</div>
           <nav>
-            {navItems.slice(0, 4).map((item) => (
+            {navItems.slice(0, 5).map((item) => (
               <Link
                 key={item.href}
                 href={item.href}
@@ -419,7 +416,7 @@ export default function AdminSidebar({ collapsed, setCollapsed }: AdminSidebarPr
           {/* Kelola Nav */}
           <div className="ps-section-label">Manajemen</div>
           <nav>
-            {navItems.slice(4).map((item) => (
+            {navItems.slice(5).map((item) => (
               <Link
                 key={item.href}
                 href={item.href}

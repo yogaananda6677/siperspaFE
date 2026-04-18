@@ -13,9 +13,11 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "MyApp",
+  title: "RENTAL PS",
   description: "Aplikasi web modern dengan Next.js",
 };
+
+
 
 export default function RootLayout({
   children,
