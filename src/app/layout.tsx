@@ -1,23 +1,10 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
-
 export const metadata: Metadata = {
-  title: "RENTAL PS",
-  description: "Aplikasi web modern dengan Next.js",
+  title: "Infinity PS - Main PS Lebih Mudah, Booking Dari Aplikasi",
+  description: "Landing page Infinity PS",
 };
-
-
 
 export default function RootLayout({
   children,
@@ -25,13 +12,14 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html
-      lang="id"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
-    >
-      <body className="min-h-full flex flex-col bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-50">
-        {children}
-      </body>
+    <html lang="id">
+      <head>
+        <link
+          rel="stylesheet"
+          href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700&display=swap"
+        />
+      </head>
+      <body>{children}</body>
     </html>
   );
 }

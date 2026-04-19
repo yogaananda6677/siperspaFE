@@ -147,7 +147,7 @@ function QuickAction({
   title: string;
   desc: string;
   href: string;
-  emoji: string;
+  emoji: React.ReactNode;
 }) {
   return (
     <a
@@ -429,26 +429,52 @@ export default function AdminDashboardPage() {
             title="Approve Booking"
             desc="Verifikasi booking pelanggan yang masih menunggu approval."
             href="/admin/approve-booking"
-            emoji="✅"
-          />
-          <QuickAction
+            emoji={
+                <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24">
+                <path d="M8 7h8M8 12h5M8 17h4" strokeLinecap="round" />
+                <circle cx="18" cy="17" r="3" />
+                <path d="M17 17l1 1 2-2" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+            }
+            />
+
+            <QuickAction
             title="Pembayaran Cash"
             desc="Konfirmasi pembayaran cash dan cek antrean validasi."
-            href="/admin/pembayaran-cash"
-            emoji="💵"
-          />
-          <QuickAction
+            href="/admin/pembayaran"
+            emoji={
+                <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24">
+                <path d="M12 1v22M5 5h9a3 3 0 010 6H9a3 3 0 000 6h10" strokeLinecap="round" />
+                </svg>
+            }
+            />
+
+            <QuickAction
             title="Monitoring PS"
             desc="Pantau status semua unit PlayStation secara real-time."
             href="/admin/monitoring"
-            emoji="🖥️"
-          />
-          <QuickAction
-            title="Riwayat Transaksi"
-            desc="Lihat seluruh transaksi, detail pelanggan, dan status pembayaran."
-            href="/admin/transaksi"
-            emoji="🧾"
-          />
+            emoji={
+                <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24">
+                <polyline points="3 17 9 11 13 15 21 7" strokeLinecap="round" strokeLinejoin="round" />
+                <circle cx="3" cy="17" r="1.5" fill="currentColor" />
+                <circle cx="9" cy="11" r="1.5" fill="currentColor" />
+                <circle cx="13" cy="15" r="1.5" fill="currentColor" />
+                <circle cx="21" cy="7" r="1.5" fill="currentColor" />
+                </svg>
+            }
+            />
+
+        <QuickAction
+        title="Riwayat Transaksi"
+        desc="Lihat seluruh transaksi, detail pelanggan, dan status pembayaran."
+        href="/admin/transaksi"
+        emoji={
+            <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24">
+            <rect x="3" y="4" width="18" height="16" rx="2" />
+            <path d="M7 8h10M7 12h6M7 16h4" strokeLinecap="round" />
+            </svg>
+        }
+        />
         </div>
       </div>
 
