@@ -7,6 +7,7 @@ import {
   type Pelanggan,
   type Produk,
   bayarTransaksi,
+  createQrisPayment,
   createTransaksi,
   getMonitoringPlaystation,
   getPelanggans,
@@ -75,6 +76,10 @@ export function useMonitoringPage() {
   const nominalBayar =
     metodePembayaran === "online" ? totalAktif : Number(jumlahBayar || 0);
   const kembalianCash = Math.max(0, nominalBayar - totalAktif);
+
+  const [qrisUrl, setQrisUrl] = useState<string | null>(null);
+  const [qrisExpiredAt, setQrisExpiredAt] = useState<string | null>(null);
+  const [qrisOrderId, setQrisOrderId] = useState<string | null>(null);
 
   const showToast = (msg: string, type: "success" | "error") => {
     setToast({ msg, type });
@@ -166,6 +171,9 @@ export function useMonitoringPage() {
     setProductKeyword("");
     setMetodePembayaran("cash");
     setJumlahBayar("");
+    setQrisUrl(null);
+setQrisExpiredAt(null);
+setQrisOrderId(null);
   };
 
   const closeModal = () => {
@@ -176,6 +184,9 @@ export function useMonitoringPage() {
     setProductKeyword("");
     setJumlahBayar("");
     setMetodePembayaran("cash");
+    setQrisUrl(null);
+setQrisExpiredAt(null);
+setQrisOrderId(null);
   };
 
   const filteredData = useMemo(() => {
@@ -390,38 +401,82 @@ export function useMonitoringPage() {
   };
 
   const handleBayar = async () => {
-    if (!selected?.active_transaksi || isMutating) return;
+  if (!selected?.active_transaksi || isMutating) return;
 
-    if (sudahLunas) {
-      showToast("Transaksi ini sudah lunas.", "success");
-      return;
-    }
+  if (sudahLunas) {
+    showToast("Transaksi ini sudah lunas.", "success");
+    return;
+  }
 
-    if (metodePembayaran === "cash" && nominalBayar < totalAktif) {
-      showToast("Nominal pembayaran cash kurang dari total tagihan.", "error");
-      return;
-    }
+  if (metodePembayaran === "cash" && nominalBayar < totalAktif) {
+    showToast("Nominal pembayaran cash kurang dari total tagihan.", "error");
+    return;
+  }
 
-    setIsMutating(true);
-    setSubmittingBayar(true);
+  setIsMutating(true);
+  setSubmittingBayar(true);
 
-    try {
+  try {
+    if (metodePembayaran === "cash") {
       await bayarTransaksi(selected.active_transaksi.id_transaksi, {
-        metode_pembayaran: metodePembayaran,
-        total_bayar: metodePembayaran === "cash" ? nominalBayar : totalAktif,
+        metode_pembayaran: "cash",
+        total_bayar: nominalBayar,
       });
 
       await fetchAll({ silent: true });
-
-      showToast("Pembayaran berhasil disimpan.", "success");
+      showToast("Pembayaran cash berhasil disimpan.", "success");
       setActiveTab("pembayaran");
-    } catch (e) {
-      showToast(e instanceof Error ? e.message : "Gagal menyimpan pembayaran.", "error");
-    } finally {
-      setSubmittingBayar(false);
-      setIsMutating(false);
+    } else {
+      const result = await createQrisPayment(selected.active_transaksi.id_transaksi);
+
+      const payment = result?.data?.payment ?? null;
+      const midtrans = result?.data?.midtrans ?? null;
+
+      const actions = Array.isArray(midtrans?.actions) ? midtrans.actions : [];
+      const generateQrAction = actions.find(
+        (item: any) => item?.name === "generate-qr-code"
+      );
+
+      const resolvedQrUrl =
+        payment?.qr_url ??
+        generateQrAction?.url ??
+        null;
+
+      const resolvedExpiredAt =
+        payment?.expired_at ??
+        midtrans?.expiry_time ??
+        null;
+
+      const resolvedOrderId =
+        payment?.provider_order_id ??
+        midtrans?.order_id ??
+        null;
+
+      console.log("QRIS RESULT:", result);
+      console.log("PAYMENT:", payment);
+      console.log("MIDTRANS:", midtrans);
+      console.log("QR URL:", resolvedQrUrl);
+
+      setQrisUrl(resolvedQrUrl);
+      setQrisExpiredAt(resolvedExpiredAt);
+      setQrisOrderId(resolvedOrderId);
+
+      showToast("QRIS berhasil dibuat.", "success");
+      setActiveTab("pembayaran");
+
+      // sementara jangan fetchAll dulu, biar QR tetap tampil
+      // await fetchAll({ silent: true });
     }
-  };
+  } catch (e) {
+    showToast(
+      e instanceof Error ? e.message : "Gagal memproses pembayaran.",
+      "error"
+    );
+  } finally {
+    setSubmittingBayar(false);
+    setIsMutating(false);
+  }
+};
 
   const handleSelesaikan = async () => {
     if (!selected?.active_transaksi || isMutating) return;
@@ -455,7 +510,9 @@ export function useMonitoringPage() {
       setSubmittingSelesai(false);
       setIsMutating(false);
     }
-  };
+  }
+  
+  ;
 
   return {
     data,
@@ -515,5 +572,8 @@ export function useMonitoringPage() {
     nominalBayar,
     kembalianCash,
     isMutating,
+    qrisUrl,
+qrisExpiredAt,
+qrisOrderId,
   };
 }

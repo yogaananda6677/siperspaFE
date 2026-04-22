@@ -78,6 +78,9 @@ type MonitoringModalProps = {
   submittingBayar: boolean;
   onBayar: () => void;
   isMutating: boolean;
+    qrisUrl: string | null;
+  qrisExpiredAt: string | null;
+  qrisOrderId: string | null;
 };
 
 export function MonitoringModal({
@@ -119,6 +122,9 @@ export function MonitoringModal({
   submittingBayar,
   onBayar,
   isMutating,
+    qrisUrl,
+  qrisExpiredAt,
+  qrisOrderId,
 }: MonitoringModalProps) {
   return (
     <div onClick={isMutating ? undefined : onClose} style={overlayStyle}>
@@ -177,6 +183,7 @@ export function MonitoringModal({
             submittingCreate={submittingCreate}
             onCreateTransaksi={onCreateTransaksi}
             isMutating={isMutating}
+            
           />
         )}
 
@@ -208,6 +215,9 @@ export function MonitoringModal({
             onSelesaikan={onSelesaikan}
             onBayar={onBayar}
             isMutating={isMutating}
+            qrisUrl={qrisUrl}
+            qrisExpiredAt={qrisExpiredAt}
+            qrisOrderId={qrisOrderId}
           />
         )}
 
@@ -425,6 +435,9 @@ function ActiveTransaksiSection({
   onSelesaikan,
   onBayar,
   isMutating,
+    qrisUrl,
+  qrisExpiredAt,
+  qrisOrderId,
 }: {
   selected: MonitoringPlaystation;
   activeTab: ActiveTab;
@@ -452,6 +465,9 @@ function ActiveTransaksiSection({
   onSelesaikan: () => void;
   onBayar: () => void;
   isMutating: boolean;
+  qrisUrl: string | null;
+  qrisExpiredAt: string | null;
+  qrisOrderId: string | null;
 }) {
   const transaksi = selected.active_transaksi!;
   const sewaAktif = findActiveSewaForPs(transaksi, selected.id_ps);
@@ -821,10 +837,52 @@ function ActiveTransaksiSection({
           )}
 
           {metodePembayaran === "online" && (
-            <div style={{ ...emptyNoticeStyle, marginBottom: 14 }}>
-              Online payment akan langsung dicatat lunas sebesar total transaksi.
-            </div>
-          )}
+  <div
+    style={{
+      ...emptyNoticeStyle,
+      marginBottom: 14,
+      display: "flex",
+      flexDirection: "column",
+      gap: 10,
+      alignItems: "flex-start",
+    }}
+  >
+    <div>
+      Online payment akan membuat QRIS. Status pembayaran akan tetap
+      <strong> menunggu </strong>
+      sampai dibayar oleh pelanggan.
+    </div>
+
+    {qrisOrderId && (
+      <div>
+        <strong>Order ID:</strong> {qrisOrderId}
+      </div>
+    )}
+
+    {qrisExpiredAt && (
+      <div>
+        <strong>Berlaku sampai:</strong> {formatDateTime(qrisExpiredAt)}
+      </div>
+    )}
+
+    {qrisUrl && (
+      <div
+        style={{
+          padding: 12,
+          borderRadius: 12,
+          background: "#fff",
+          display: "inline-flex",
+        }}
+      >
+        <img
+          src={qrisUrl}
+          alt="QRIS Payment"
+          style={{ width: 220, height: 220, objectFit: "contain" }}
+        />
+      </div>
+    )}
+  </div>
+)}
 
           <div
             style={{
@@ -851,10 +909,14 @@ function ActiveTransaksiSection({
                     : "pointer",
               }}
             >
-              {submittingBayar
-                ? "Menyimpan..."
+                {submittingBayar
+                ? metodePembayaran === "online"
+                    ? "Membuat QRIS..."
+                    : "Menyimpan..."
                 : sudahLunas
                 ? "Sudah Lunas"
+                : metodePembayaran === "online"
+                ? "Generate QRIS"
                 : "Simpan Pembayaran"}
             </button>
           </div>

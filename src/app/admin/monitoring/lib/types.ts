@@ -25,3 +25,17 @@ export type MonitoringStats = {
   digunakan: number;
   maintenance: number;
 };
+
+
+export type QrisPaymentData = {
+  provider?: string | null;
+  provider_order_id?: string | null;
+  provider_transaction_id?: string | null;
+  provider_payment_type?: string | null;
+  provider_transaction_status?: string | null;
+  qr_url?: string | null;
+  qr_string?: string | null;
+  expired_at?: string | null;
+  status_bayar?: string | null;
+  total_bayar?: number | string | null;
+};

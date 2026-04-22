@@ -291,7 +291,7 @@ export type MonitoringPembayaran = {
   total_bayar: number;
   kembalian: number;
   waktu_bayar: string | null;
-  status_bayar: "menuggu" | "lunas" | "gagal" | "menunggu_validasi";
+  status_bayar: "menunggu" | "lunas" | "gagal" | "menunggu_validasi";
 };
 
 export type BayarTransaksiPayload = {
@@ -1226,3 +1226,44 @@ export async function getAdminDashboard(): Promise<AdminDashboardResponse> {
 
   return handleResponse<AdminDashboardResponse>(res);
 }
+
+export async function createQrisPayment(idTransaksi: number | string) {
+  const res = await fetch(`${BASE_URL}/transaksi/${idTransaksi}/payment/qris`, {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify({}),
+  });
+
+  return handleResponse<{
+    message: string;
+    data: {
+      transaksi: MonitoringTransaksi;
+      payment: MonitoringPembayaran & {
+        provider?: string | null;
+        provider_order_id?: string | null;
+        provider_transaction_id?: string | null;
+        provider_payment_type?: string | null;
+        provider_transaction_status?: string | null;
+        provider_fraud_status?: string | null;
+        qr_url?: string | null;
+        qr_string?: string | null;
+        expired_at?: string | null;
+      };
+      midtrans?: {
+        order_id?: string;
+        transaction_id?: string;
+        payment_type?: string;
+        transaction_status?: string;
+        fraud_status?: string;
+        expiry_time?: string;
+        actions?: Array<{
+          name?: string;
+          method?: string;
+          url?: string;
+        }>;
+        [key: string]: any;
+      };
+    };
+  }>(res);
+}
+

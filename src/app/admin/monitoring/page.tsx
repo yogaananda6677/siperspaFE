@@ -80,6 +80,10 @@ export default function MonitoringPage() {
             onSelesaikan={state.handleSelesaikan}
             onBayar={state.handleBayar}
             isMutating={state.isMutating}
+            qrisUrl={state.qrisUrl}
+            qrisExpiredAt={state.qrisExpiredAt}
+            qrisOrderId={state.qrisOrderId}
+
             />
       )}
 
