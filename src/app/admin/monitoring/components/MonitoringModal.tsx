@@ -38,7 +38,7 @@ import {
   summaryValueStyle,
   tabButton,
 } from "../lib/styles";
-import type { ActiveTab, CartItem } from "../lib/types";
+import type { ActiveTab, CartItem, ProductCategory } from "../lib/types";
 import { ProductPicker } from "../components/ProductPicker";
 
 type MonitoringModalProps = {
@@ -59,6 +59,10 @@ type MonitoringModalProps = {
   grandTotal: number;
   filteredProdukKasir: Produk[];
   cart: CartItem[];
+  productKeyword: string;
+  setProductKeyword: Dispatch<SetStateAction<string>>;
+  productCategory: ProductCategory;
+  setProductCategory: Dispatch<SetStateAction<ProductCategory>>;
   addToCart: (produk: Produk) => void;
   changeQty: (id_produk: number, delta: number) => void;
   submittingCreate: boolean;
@@ -81,6 +85,9 @@ type MonitoringModalProps = {
   qrisUrl: string | null;
   qrisExpiredAt: string | null;
   qrisOrderId: string | null;
+  syncQrisStatus: (showToastOnSuccess?: boolean) => void;
+  isCheckingQris: boolean;
+  lastQrisStatus: string | null;
 };
 
 export function MonitoringModal({
@@ -101,6 +108,10 @@ export function MonitoringModal({
   grandTotal,
   filteredProdukKasir,
   cart,
+  productKeyword,
+  setProductKeyword,
+  productCategory,
+  setProductCategory,
   addToCart,
   changeQty,
   submittingCreate,
@@ -123,6 +134,9 @@ export function MonitoringModal({
   qrisUrl,
   qrisExpiredAt,
   qrisOrderId,
+  syncQrisStatus,
+  isCheckingQris,
+  lastQrisStatus,
 }: MonitoringModalProps) {
   return (
     <div onClick={isMutating ? undefined : onClose} style={overlayStyle}>
@@ -174,12 +188,16 @@ export function MonitoringModal({
             grandTotal={grandTotal}
             filteredProdukKasir={filteredProdukKasir}
             cart={cart}
+            productKeyword={productKeyword}
+            setProductKeyword={setProductKeyword}
+            productCategory={productCategory}
+            setProductCategory={setProductCategory}
             addToCart={addToCart}
             changeQty={changeQty}
             submittingCreate={submittingCreate}
             onCreateTransaksi={onCreateTransaksi}
             isMutating={isMutating}
-            />
+          />
         )}
 
         {selected.status_ps === "digunakan" && selected.active_transaksi && (
@@ -192,6 +210,10 @@ export function MonitoringModal({
             produkSubtotal={produkSubtotal}
             filteredProdukKasir={filteredProdukKasir}
             cart={cart}
+            productKeyword={productKeyword}
+            setProductKeyword={setProductKeyword}
+            productCategory={productCategory}
+            setProductCategory={setProductCategory}
             addToCart={addToCart}
             changeQty={changeQty}
             submittingTambahProduk={submittingTambahProduk}
@@ -211,7 +233,10 @@ export function MonitoringModal({
             qrisUrl={qrisUrl}
             qrisExpiredAt={qrisExpiredAt}
             qrisOrderId={qrisOrderId}
-            />
+            syncQrisStatus={syncQrisStatus}
+            isCheckingQris={isCheckingQris}
+            lastQrisStatus={lastQrisStatus}
+          />
         )}
 
         {selected.status_ps === "maintenance" && <MaintenanceSection />}
@@ -264,6 +289,10 @@ function CreateTransaksiSection({
   grandTotal,
   filteredProdukKasir,
   cart,
+  productKeyword,
+  setProductKeyword,
+  productCategory,
+  setProductCategory,
   addToCart,
   changeQty,
   submittingCreate,
@@ -282,6 +311,10 @@ function CreateTransaksiSection({
   grandTotal: number;
   filteredProdukKasir: Produk[];
   cart: CartItem[];
+  productKeyword: string;
+  setProductKeyword: Dispatch<SetStateAction<string>>;
+  productCategory: ProductCategory;
+  setProductCategory: Dispatch<SetStateAction<ProductCategory>>;
   addToCart: (produk: Produk) => void;
   changeQty: (id_produk: number, delta: number) => void;
   submittingCreate: boolean;
@@ -377,13 +410,18 @@ function CreateTransaksiSection({
         </div>
       </div>
 
-        <ProductPicker
+      <ProductPicker
         filteredProdukKasir={filteredProdukKasir}
         cart={cart}
+        productKeyword={productKeyword}
+        productCategory={productCategory}
+        onProductKeywordChange={setProductKeyword}
+        onProductCategoryChange={setProductCategory}
         onAddToCart={addToCart}
         onChangeQty={changeQty}
         disabled={isMutating}
-        />
+      />
+
       <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 16 }}>
         <button
           onClick={onCreateTransaksi}
@@ -406,6 +444,10 @@ function ActiveTransaksiSection({
   produkSubtotal,
   filteredProdukKasir,
   cart,
+  productKeyword,
+  setProductKeyword,
+  productCategory,
+  setProductCategory,
   addToCart,
   changeQty,
   submittingTambahProduk,
@@ -425,6 +467,9 @@ function ActiveTransaksiSection({
   qrisUrl,
   qrisExpiredAt,
   qrisOrderId,
+  syncQrisStatus,
+  isCheckingQris,
+  lastQrisStatus,
 }: {
   selected: MonitoringPlaystation;
   activeTab: ActiveTab;
@@ -434,6 +479,10 @@ function ActiveTransaksiSection({
   produkSubtotal: number;
   filteredProdukKasir: Produk[];
   cart: CartItem[];
+  productKeyword: string;
+  setProductKeyword: Dispatch<SetStateAction<string>>;
+  productCategory: ProductCategory;
+  setProductCategory: Dispatch<SetStateAction<ProductCategory>>;
   addToCart: (produk: Produk) => void;
   changeQty: (id_produk: number, delta: number) => void;
   submittingTambahProduk: boolean;
@@ -453,6 +502,9 @@ function ActiveTransaksiSection({
   qrisUrl: string | null;
   qrisExpiredAt: string | null;
   qrisOrderId: string | null;
+  syncQrisStatus: (showToastOnSuccess?: boolean) => void;
+  isCheckingQris: boolean;
+  lastQrisStatus: string | null;
 }) {
   const transaksi = selected.active_transaksi!;
   const sewaAktif = findActiveSewaForPs(transaksi, selected.id_ps);
@@ -473,18 +525,19 @@ function ActiveTransaksiSection({
   const totalAktif = getTotalTransaksiCalculated(transaksi);
   const sudahDibayar = getSudahDibayar(transaksi);
   const sisaTagihan = Math.max(0, totalAktif - sudahDibayar);
-const nominalBayarPreview =
-  metodePembayaran === "online" ? sisaTagihan : Number(jumlahBayar || 0);
 
-const nominalBayarTampil =
-  pembayaranAktif && statusBayar === "lunas"
-    ? Number(pembayaranAktif.total_bayar || 0)
-    : nominalBayarPreview;
+  const nominalBayarPreview =
+    metodePembayaran === "online" ? sisaTagihan : Number(jumlahBayar || 0);
 
-const kembalianCash =
-  pembayaranAktif && statusBayar === "lunas"
-    ? Number(pembayaranAktif.kembalian || 0)
-    : Math.max(0, nominalBayarPreview - sisaTagihan);
+  const nominalBayarTampil =
+    pembayaranAktif && statusBayar === "lunas"
+      ? Number(pembayaranAktif.total_bayar || 0)
+      : nominalBayarPreview;
+
+  const kembalianCash =
+    pembayaranAktif && statusBayar === "lunas"
+      ? Number(pembayaranAktif.kembalian || 0)
+      : Math.max(0, nominalBayarPreview - sisaTagihan);
 
   const lockedTabButton = (active: boolean) => ({
     ...tabButton(active),
@@ -761,6 +814,10 @@ const kembalianCash =
           <ProductPicker
             filteredProdukKasir={filteredProdukKasir}
             cart={cart}
+            productKeyword={productKeyword}
+            productCategory={productCategory}
+            onProductKeywordChange={setProductKeyword}
+            onProductCategoryChange={setProductCategory}
             onAddToCart={addToCart}
             onChangeQty={changeQty}
             disabled={isMutating || isLockedByH30}
@@ -1005,6 +1062,12 @@ const kembalianCash =
                 </div>
               )}
 
+              {lastQrisStatus && (
+                <div>
+                  <strong>Status provider terakhir:</strong> {lastQrisStatus}
+                </div>
+              )}
+
               {qrisUrl && (
                 <div
                   style={{
@@ -1021,6 +1084,38 @@ const kembalianCash =
                   />
                 </div>
               )}
+
+              <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 12 }}>
+                {qrisUrl && (
+                  <a
+                    href={qrisUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    style={{
+                      ...primaryBtnStyle,
+                      textDecoration: "none",
+                      display: "inline-flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                  >
+                    Buka QRIS
+                  </a>
+                )}
+
+                <button
+                  type="button"
+                  onClick={() => syncQrisStatus(true)}
+                  disabled={isCheckingQris || isMutating}
+                  style={{
+                    ...primaryBtnStyle,
+                    opacity: isCheckingQris || isMutating ? 0.6 : 1,
+                    cursor: isCheckingQris || isMutating ? "not-allowed" : "pointer",
+                  }}
+                >
+                  {isCheckingQris ? "Mengecek..." : "Cek Status"}
+                </button>
+              </div>
             </div>
           )}
 

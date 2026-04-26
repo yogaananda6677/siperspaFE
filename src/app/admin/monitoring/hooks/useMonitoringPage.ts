@@ -8,6 +8,7 @@ import {
   type Produk,
   bayarTransaksi,
   createQrisPayment,
+  checkQrisPaymentStatus,
   createTransaksi,
   getMonitoringPlaystation,
   getPelanggans,
@@ -28,6 +29,7 @@ import type {
   CartItem,
   FilterStatus,
   MonitoringStats,
+  ProductCategory,
   ToastState,
 } from "../lib/types";
 
@@ -53,6 +55,7 @@ export function useMonitoringPage() {
   const [menitTambahan, setMenitTambahan] = useState(30);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [productKeyword, setProductKeyword] = useState("");
+  const [productCategory, setProductCategory] = useState<ProductCategory>("semua");
 
   const [submittingCreate, setSubmittingCreate] = useState(false);
   const [submittingTambahProduk, setSubmittingTambahProduk] = useState(false);
@@ -66,6 +69,13 @@ export function useMonitoringPage() {
   const [metodePembayaran, setMetodePembayaran] = useState<"cash" | "online">("cash");
   const [jumlahBayar, setJumlahBayar] = useState("");
 
+  const [qrisUrl, setQrisUrl] = useState<string | null>(null);
+  const [qrisExpiredAt, setQrisExpiredAt] = useState<string | null>(null);
+  const [qrisOrderId, setQrisOrderId] = useState<string | null>(null);
+  const [isCheckingQris, setIsCheckingQris] = useState(false);
+  const [lastQrisStatus, setLastQrisStatus] = useState<string | null>(null);
+  const [qrisPollingEnabled, setQrisPollingEnabled] = useState(false);
+
   const selected = useMemo(
     () => data.find((item) => item.id_ps === selectedIdPs) ?? null,
     [data, selectedIdPs]
@@ -78,10 +88,6 @@ export function useMonitoringPage() {
     metodePembayaran === "online" ? totalAktif : Number(jumlahBayar || 0);
   const kembalianCash = Math.max(0, nominalBayar - totalAktif);
 
-  const [qrisUrl, setQrisUrl] = useState<string | null>(null);
-  const [qrisExpiredAt, setQrisExpiredAt] = useState<string | null>(null);
-  const [qrisOrderId, setQrisOrderId] = useState<string | null>(null);
-
   const showToast = (msg: string, type: "success" | "error") => {
     setToast({ msg, type });
     window.setTimeout(() => setToast(null), 2500);
@@ -90,17 +96,17 @@ export function useMonitoringPage() {
   const applyUpdatedTransaksi = (updated: MonitoringTransaksi) => {
     setData((prev) =>
       prev.map((item) => {
-        const isSamePs = updated.detail_sewa?.some((sewa) => Number(sewa.id_ps) === Number(item.id_ps));
+        const isSamePs = updated.detail_sewa?.some(
+          (sewa) => Number(sewa.id_ps) === Number(item.id_ps)
+        );
         if (!isSamePs) return item;
+
         return {
           ...item,
-          status_ps: "digunakan",
-          active_transaksi: {
-            ...updated,
-            pembayaran: updated.pembayaran
-              ? { ...updated.pembayaran, status_bayar: getNormalizedStatusBayarLocal(updated) === "lunas" ? "lunas" : updated.pembayaran.status_bayar }
-              : updated.pembayaran,
-          },
+          status_ps:
+            updated.status_transaksi === "selesai" ? "tersedia" : "digunakan",
+          active_transaksi:
+            updated.status_transaksi === "selesai" ? null : updated,
         };
       })
     );
@@ -178,6 +184,16 @@ export function useMonitoringPage() {
     return () => window.clearInterval(id);
   }, [isMutating, selectedIdPs]);
 
+  useEffect(() => {
+    if (!qrisPollingEnabled || !selected?.active_transaksi || !qrisUrl) return;
+
+    const interval = window.setInterval(() => {
+      void syncQrisStatus(false);
+    }, 5000);
+
+    return () => window.clearInterval(interval);
+  }, [qrisPollingEnabled, selected?.active_transaksi?.id_transaksi, qrisUrl]);
+
   const openModal = (item: MonitoringPlaystation) => {
     if (isMutating) return;
 
@@ -189,11 +205,14 @@ export function useMonitoringPage() {
     setMenitTambahan(30);
     setCart([]);
     setProductKeyword("");
+    setProductCategory("semua");
     setMetodePembayaran("cash");
     setJumlahBayar("");
     setQrisUrl(null);
-setQrisExpiredAt(null);
-setQrisOrderId(null);
+    setQrisExpiredAt(null);
+    setQrisOrderId(null);
+    setQrisPollingEnabled(false);
+    setLastQrisStatus(null);
   };
 
   const closeModal = () => {
@@ -202,11 +221,14 @@ setQrisOrderId(null);
     setSelectedIdPs(null);
     setCart([]);
     setProductKeyword("");
+    setProductCategory("semua");
     setJumlahBayar("");
     setMetodePembayaran("cash");
     setQrisUrl(null);
-setQrisExpiredAt(null);
-setQrisOrderId(null);
+    setQrisExpiredAt(null);
+    setQrisOrderId(null);
+    setQrisPollingEnabled(false);
+    setLastQrisStatus(null);
   };
 
   const filteredData = useMemo(() => {
@@ -248,12 +270,19 @@ setQrisOrderId(null);
   const filteredProdukKasir = useMemo(() => {
     const q = productKeyword.toLowerCase();
 
-    return produkList.filter(
-      (p) =>
-        p.stock > 0 &&
-        (!q || p.nama.toLowerCase().includes(q) || p.jenis.toLowerCase().includes(q))
-    );
-  }, [produkList, productKeyword]);
+    return produkList.filter((p) => {
+      if (p.stock <= 0) return false;
+
+      const matchKeyword =
+        !q || p.nama.toLowerCase().includes(q) || p.jenis.toLowerCase().includes(q);
+
+      const matchCategory =
+        productCategory === "semua" ||
+        p.jenis.toLowerCase() === productCategory;
+
+      return matchKeyword && matchCategory;
+    });
+  }, [produkList, productKeyword, productCategory]);
 
   const addToCart = (produk: Produk) => {
     if (isMutating) return;
@@ -337,6 +366,7 @@ setQrisOrderId(null);
       setActiveTab("sewa");
       setCart([]);
       setProductKeyword("");
+      setProductCategory("semua");
       setJumlahBayar("");
       setMetodePembayaran("cash");
     } catch (e) {
@@ -380,6 +410,7 @@ setQrisOrderId(null);
       showToast("Produk berhasil ditambahkan.", "success");
       setCart([]);
       setProductKeyword("");
+      setProductCategory("semua");
       setActiveTab("produk");
     } catch (e) {
       showToast(
@@ -423,83 +454,131 @@ setQrisOrderId(null);
   };
 
   const handleBayar = async () => {
-  if (!selected?.active_transaksi || isMutating) return;
+    if (!selected?.active_transaksi || isMutating) return;
 
-  if (sudahLunas) {
-    showToast("Transaksi ini sudah lunas.", "success");
-    return;
-  }
+    if (sudahLunas) {
+      showToast("Transaksi ini sudah lunas.", "success");
+      return;
+    }
 
-  if (metodePembayaran === "cash" && nominalBayar < totalAktif) {
-    showToast("Nominal pembayaran cash kurang dari total tagihan.", "error");
-    return;
-  }
+    if (metodePembayaran === "cash" && nominalBayar < totalAktif) {
+      showToast("Nominal pembayaran cash kurang dari total tagihan.", "error");
+      return;
+    }
 
-  setIsMutating(true);
-  setSubmittingBayar(true);
+    setIsMutating(true);
+    setSubmittingBayar(true);
 
-  try {
-    if (metodePembayaran === "cash") {
-      const updated = await bayarTransaksi(selected.active_transaksi.id_transaksi, {
-        metode_pembayaran: "cash",
-        total_bayar: nominalBayar,
-      });
+    try {
+      if (metodePembayaran === "cash") {
+        const updated = await bayarTransaksi(selected.active_transaksi.id_transaksi, {
+          metode_pembayaran: "cash",
+          total_bayar: nominalBayar,
+        });
 
-      applyUpdatedTransaksi(updated);
-      await fetchAll({ silent: true });
-      showToast("Pembayaran cash berhasil disimpan.", "success");
-      setActiveTab("pembayaran");
-    } else {
-      const result = await createQrisPayment(selected.active_transaksi.id_transaksi);
+        applyUpdatedTransaksi(updated);
+        await fetchAll({ silent: true });
+        showToast("Pembayaran cash berhasil disimpan.", "success");
+        setActiveTab("pembayaran");
+      } else {
+        const result = await createQrisPayment(selected.active_transaksi.id_transaksi);
 
+        const payment = result?.data?.payment ?? null;
+        const midtrans = result?.data?.midtrans ?? null;
+
+        const actions = Array.isArray(midtrans?.actions) ? midtrans.actions : [];
+        const generateQrAction = actions.find(
+          (item: any) => item?.name === "generate-qr-code"
+        );
+
+        const resolvedQrUrl = payment?.qr_url ?? generateQrAction?.url ?? null;
+        const resolvedExpiredAt = payment?.expired_at ?? midtrans?.expiry_time ?? null;
+        const resolvedOrderId = payment?.provider_order_id ?? midtrans?.order_id ?? null;
+
+        setQrisUrl(resolvedQrUrl);
+        setQrisExpiredAt(resolvedExpiredAt);
+        setQrisOrderId(resolvedOrderId);
+        setQrisPollingEnabled(true);
+        setLastQrisStatus("pending");
+
+        showToast("QRIS berhasil dibuat.", "success");
+        setActiveTab("pembayaran");
+      }
+    } catch (e) {
+      showToast(
+        e instanceof Error ? e.message : "Gagal memproses pembayaran.",
+        "error"
+      );
+    } finally {
+      setSubmittingBayar(false);
+      setIsMutating(false);
+    }
+  };
+
+  const syncQrisStatus = async (showToastOnSuccess = false) => {
+    if (!selected?.active_transaksi) return;
+
+    const idTransaksi = selected.active_transaksi.id_transaksi;
+
+    try {
+      setIsCheckingQris(true);
+
+      const result = await checkQrisPaymentStatus(idTransaksi);
+      const updatedTransaksi = result?.data?.transaksi ?? null;
       const payment = result?.data?.payment ?? null;
       const midtrans = result?.data?.midtrans ?? null;
 
-      const actions = Array.isArray(midtrans?.actions) ? midtrans.actions : [];
-      const generateQrAction = actions.find(
-        (item: any) => item?.name === "generate-qr-code"
-      );
+      if (updatedTransaksi) {
+        applyUpdatedTransaksi(updatedTransaksi);
+        await fetchAll({ silent: true });
+      }
 
-      const resolvedQrUrl =
-        payment?.qr_url ??
-        generateQrAction?.url ??
-        null;
+      const statusBayar =
+        (payment?.status_bayar ?? updatedTransaksi?.pembayaran?.status_bayar ?? "").toLowerCase();
 
-      const resolvedExpiredAt =
-        payment?.expired_at ??
-        midtrans?.expiry_time ??
-        null;
+      const providerStatus =
+        (
+          payment?.provider_transaction_status ??
+          updatedTransaksi?.pembayaran?.provider_transaction_status ??
+          midtrans?.transaction_status ??
+          ""
+        ).toLowerCase();
 
-      const resolvedOrderId =
-        payment?.provider_order_id ??
-        midtrans?.order_id ??
-        null;
+      setLastQrisStatus(providerStatus || statusBayar || null);
 
-      console.log("QRIS RESULT:", result);
-      console.log("PAYMENT:", payment);
-      console.log("MIDTRANS:", midtrans);
-      console.log("QR URL:", resolvedQrUrl);
+      if (
+        statusBayar === "lunas" ||
+        providerStatus === "settlement" ||
+        providerStatus === "capture"
+      ) {
+        setQrisPollingEnabled(false);
+        showToast("Pembayaran QRIS sudah lunas.", "success");
+        return;
+      }
 
-      setQrisUrl(resolvedQrUrl);
-      setQrisExpiredAt(resolvedExpiredAt);
-      setQrisOrderId(resolvedOrderId);
+      if (
+        ["gagal", "deny", "cancel", "expire", "failure"].includes(statusBayar) ||
+        ["deny", "cancel", "expire", "failure"].includes(providerStatus)
+      ) {
+        setQrisPollingEnabled(false);
+        showToast("Pembayaran QRIS gagal atau kadaluarsa.", "error");
+        return;
+      }
 
-      showToast("QRIS berhasil dibuat.", "success");
-      setActiveTab("pembayaran");
-
-      // sementara jangan fetchAll dulu, biar QR tetap tampil
-      // await fetchAll({ silent: true });
+      if (showToastOnSuccess) {
+        showToast("Status QRIS berhasil diperbarui.", "success");
+      }
+    } catch (e) {
+      if (showToastOnSuccess) {
+        showToast(
+          e instanceof Error ? e.message : "Gagal mengecek status QRIS.",
+          "error"
+        );
+      }
+    } finally {
+      setIsCheckingQris(false);
     }
-  } catch (e) {
-    showToast(
-      e instanceof Error ? e.message : "Gagal memproses pembayaran.",
-      "error"
-    );
-  } finally {
-    setSubmittingBayar(false);
-    setIsMutating(false);
-  }
-};
+  };
 
   const handleSelesaikan = async () => {
     if (!selected?.active_transaksi || isMutating) return;
@@ -522,6 +601,7 @@ setQrisOrderId(null);
       setSelectedIdPs(null);
       setCart([]);
       setProductKeyword("");
+      setProductCategory("semua");
       setJumlahBayar("");
       setMetodePembayaran("cash");
     } catch (e) {
@@ -533,9 +613,7 @@ setQrisOrderId(null);
       setSubmittingSelesai(false);
       setIsMutating(false);
     }
-  }
-  
-  ;
+  };
 
   return {
     data,
@@ -554,6 +632,7 @@ setQrisOrderId(null);
     menitTambahan,
     cart,
     productKeyword,
+    productCategory,
     submittingCreate,
     submittingTambahProduk,
     submittingSelesai,
@@ -574,6 +653,7 @@ setQrisOrderId(null);
     setDurasiMenit,
     setMenitTambahan,
     setProductKeyword,
+    setProductCategory,
     fetchAll,
     openModal,
     closeModal,
@@ -596,7 +676,10 @@ setQrisOrderId(null);
     kembalianCash,
     isMutating,
     qrisUrl,
-qrisExpiredAt,
-qrisOrderId,
+    qrisExpiredAt,
+    qrisOrderId,
+    syncQrisStatus,
+    isCheckingQris,
+    lastQrisStatus,
   };
 }

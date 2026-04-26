@@ -1184,3 +1184,12 @@ export async function createQrisPayment(idTransaksi: number | string) {
   }>(res);
 }
 
+export async function checkQrisPaymentStatus(id: number) {
+  const res = await fetch(`${BASE_URL}/transaksi/${id}/payment/qris/status`, {
+    method: "GET",
+    headers: authHeaders(),
+    cache: "no-store",
+  });
+
+  return handleResponse<any>(res);
+}

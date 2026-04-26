@@ -9,7 +9,6 @@ import { ReceiptModal } from "./components/ReceiptModal";
 import { Toast } from "./components/Toast";
 import { useMonitoringPage } from "./hooks/useMonitoringPage";
 
-
 export default function MonitoringPage() {
   const state = useMonitoringPage();
 
@@ -42,49 +41,53 @@ export default function MonitoringPage() {
 
       {state.selected && (
         <MonitoringModal
-            selected={state.selected}
-            activeTab={state.activeTab}
-            setActiveTab={state.setActiveTab}
-            pelanggans={state.pelanggans}
-            selectedUserId={state.selectedUserId}
-            setSelectedUserId={state.setSelectedUserId}
-            jamMulai={state.jamMulai}
-            setJamMulai={state.setJamMulai}
-            durasiMenit={state.durasiMenit}
-            setDurasiMenit={state.setDurasiMenit}
-            menitTambahan={state.menitTambahan}
-            setMenitTambahan={state.setMenitTambahan}
-            rentalSubtotal={state.rentalSubtotal}
-            produkSubtotal={state.produkSubtotal}
-            grandTotal={state.grandTotal}
-            filteredProdukKasir={state.filteredProdukKasir}
-            cart={state.cart}
-            productKeyword={state.productKeyword}
-            setProductKeyword={state.setProductKeyword}
-            addToCart={state.addToCart}
-            changeQty={state.changeQty}
-            submittingCreate={state.submittingCreate}
-            submittingTambahProduk={state.submittingTambahProduk}
-            submittingTambahWaktu={state.submittingTambahWaktu}
-            submittingSelesai={state.submittingSelesai}
-            submittingBayar={state.submittingBayar}
-            metodePembayaran={state.metodePembayaran}
-            setMetodePembayaran={state.setMetodePembayaran}
-            jumlahBayar={state.jumlahBayar}
-            setJumlahBayar={state.setJumlahBayar}
-            nowTick={state.nowTick}
-            onClose={state.closeModal}
-            onCreateTransaksi={state.handleCreateTransaksi}
-            onTambahProduk={state.handleTambahProduk}
-            onTambahWaktu={state.handleTambahWaktu}
-            onSelesaikan={state.handleSelesaikan}
-            onBayar={state.handleBayar}
-            isMutating={state.isMutating}
-            qrisUrl={state.qrisUrl}
-            qrisExpiredAt={state.qrisExpiredAt}
-            qrisOrderId={state.qrisOrderId}
-
-            />
+          selected={state.selected}
+          activeTab={state.activeTab}
+          setActiveTab={state.setActiveTab}
+          pelanggans={state.pelanggans}
+          selectedUserId={state.selectedUserId}
+          setSelectedUserId={state.setSelectedUserId}
+          jamMulai={state.jamMulai}
+          setJamMulai={state.setJamMulai}
+          durasiMenit={state.durasiMenit}
+          setDurasiMenit={state.setDurasiMenit}
+          menitTambahan={state.menitTambahan}
+          setMenitTambahan={state.setMenitTambahan}
+          rentalSubtotal={state.rentalSubtotal}
+          produkSubtotal={state.produkSubtotal}
+          grandTotal={state.grandTotal}
+          filteredProdukKasir={state.filteredProdukKasir}
+          cart={state.cart}
+          productKeyword={state.productKeyword}
+          setProductKeyword={state.setProductKeyword}
+          productCategory={state.productCategory}
+          setProductCategory={state.setProductCategory}
+          addToCart={state.addToCart}
+          changeQty={state.changeQty}
+          submittingCreate={state.submittingCreate}
+          submittingTambahProduk={state.submittingTambahProduk}
+          submittingTambahWaktu={state.submittingTambahWaktu}
+          submittingSelesai={state.submittingSelesai}
+          submittingBayar={state.submittingBayar}
+          metodePembayaran={state.metodePembayaran}
+          setMetodePembayaran={state.setMetodePembayaran}
+          jumlahBayar={state.jumlahBayar}
+          setJumlahBayar={state.setJumlahBayar}
+          nowTick={state.nowTick}
+          onClose={state.closeModal}
+          onCreateTransaksi={state.handleCreateTransaksi}
+          onTambahProduk={state.handleTambahProduk}
+          onTambahWaktu={state.handleTambahWaktu}
+          onSelesaikan={state.handleSelesaikan}
+          onBayar={state.handleBayar}
+          isMutating={state.isMutating}
+          qrisUrl={state.qrisUrl}
+          qrisExpiredAt={state.qrisExpiredAt}
+          qrisOrderId={state.qrisOrderId}
+          syncQrisStatus={state.syncQrisStatus}
+          isCheckingQris={state.isCheckingQris}
+          lastQrisStatus={state.lastQrisStatus}
+        />
       )}
 
       {state.receiptData && (
