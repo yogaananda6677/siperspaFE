@@ -39,3 +39,4 @@ export type QrisPaymentData = {
   status_bayar?: string | null;
   total_bayar?: number | string | null;
 };
+export type ProductCategory = "makanan" | "minuman" | "snack";

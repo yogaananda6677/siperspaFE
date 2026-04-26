@@ -1,65 +1,70 @@
-import type { MonitoringDetailSewa, MonitoringTransaksi } from "@/lib/api";
-
+import type { MonitoringDetailProduk, MonitoringDetailSewa, MonitoringPlaystation, MonitoringTransaksi } from "@/lib/api";
 
 export const STATUS_CONFIG = {
   tersedia: {
     label: "Tersedia",
+    tone: "success",
+    border: "rgba(74, 222, 128, 0.28)",
+    bg: "rgba(74, 222, 128, 0.10)",
+    glow: "0 12px 28px rgba(0,0,0,0.18)",
     color: "#4ade80",
-    bg: "rgba(74,222,128,0.08)",
-    border: "rgba(74,222,128,0.2)",
-    glow: "0 0 18px rgba(74,222,128,0.18)",
   },
   digunakan: {
     label: "Digunakan",
-    color: "#fb923c",
-    bg: "rgba(251,146,60,0.08)",
-    border: "rgba(251,146,60,0.2)",
-    glow: "0 0 18px rgba(251,146,60,0.18)",
+    tone: "warning",
+    border: "rgba(245, 158, 11, 0.28)",
+    bg: "rgba(245, 158, 11, 0.10)",
+    glow: "0 12px 28px rgba(0,0,0,0.18)",
+    color: "#f59e0b",
   },
   maintenance: {
     label: "Maintenance",
-    color: "#facc15",
-    bg: "rgba(250,204,21,0.08)",
-    border: "rgba(250,204,21,0.2)",
-    glow: "0 0 18px rgba(250,204,21,0.18)",
+    tone: "danger",
+    border: "rgba(248, 113, 113, 0.28)",
+    bg: "rgba(248, 113, 113, 0.10)",
+    glow: "0 12px 28px rgba(0,0,0,0.18)",
+    color: "#f87171",
   },
 } as const;
 
-export function toLaravelDateTime(localDateTime: string) {
-  if (!localDateTime) return "";
 
-  const [datePart, timePart = "00:00"] = localDateTime.split("T");
-  const [hour = "00", minute = "00"] = timePart.split(":");
+export function printReceipt(transaksi: MonitoringTransaksi) {
+  const popup = window.open("", "_blank", "width=420,height=700");
+  if (!popup) return;
 
-  return `${datePart} ${hour}:${minute}:00`;
+  popup.document.open();
+  popup.document.write(buildReceiptHtml(transaksi));
+  popup.document.close();
+  popup.focus();
 }
 
-export const formatRupiah = (n: number) =>
-  new Intl.NumberFormat("id-ID", {
+export function findActiveSewaForPs(
+  transaksi?: MonitoringTransaksi | null,
+  idPs?: number | null
+): MonitoringDetailSewa | null {
+  if (!transaksi || !idPs) return null;
+  return transaksi.detail_sewa.find((item) => Number(item.id_ps) === Number(idPs)) ?? null;
+}
+
+export function getDetailSewaKey(item: MonitoringDetailSewa, index: number) {
+  return `${item.id_dt_booking ?? index}-${item.id_ps ?? "ps"}-${item.jam_mulai ?? "mulai"}`;
+}
+
+export function getDetailProdukKey(item: MonitoringDetailProduk, index: number) {
+  return `${item.id_detail_produk ?? index}-${item.id_produk ?? "produk"}`;
+}
+
+export function formatRupiah(value: number) {
+  return new Intl.NumberFormat("id-ID", {
     style: "currency",
     currency: "IDR",
     maximumFractionDigits: 0,
-  }).format(n);
-
-export const formatDateTimeLocal = (date = new Date()) => {
-  const pad = (n: number) => String(n).padStart(2, "0");
-  const y = date.getFullYear();
-  const m = pad(date.getMonth() + 1);
-  const d = pad(date.getDate());
-  const hh = pad(date.getHours());
-  const mm = pad(date.getMinutes());
-  return `${y}-${m}-${d}T${hh}:${mm}`;
-};
+  }).format(Number(value || 0));
+}
 
 /**
- * Parser aman untuk format Laravel:
- * - 2026-04-11 21:30:00
- * - 2026-04-11T21:30
- * - 2026-04-11T21:30:00
- * - ISO string
- *
- * Format "YYYY-MM-DD HH:mm:ss" diperlakukan sebagai LOCAL TIME,
- * supaya tidak bergeser +7 jam di browser.
+ * Laravel kirim string tanpa timezone: 2026-04-12 21:29:00
+ * Ini HARUS dibaca sebagai waktu lokal, bukan UTC.
  */
 export function parseLaravelDateTime(value?: string | null): Date | null {
   if (!value) return null;
@@ -147,19 +152,13 @@ export function getDurasiMenit(detail?: {
   return 0;
 }
 
-export function getRemainingMs(
-  jamSelesai?: string | null,
-  nowTick = Date.now()
-) {
+export function getRemainingMs(jamSelesai?: string | null, nowTick = Date.now()) {
   const end = parseLaravelDateTime(jamSelesai)?.getTime();
   if (!end) return 0;
   return Math.max(0, end - nowTick);
 }
 
-export function getCountdownText(
-  jamSelesai?: string | null,
-  nowTick = Date.now()
-) {
+export function getCountdownText(jamSelesai?: string | null, nowTick = Date.now()) {
   const diffMs = getRemainingMs(jamSelesai, nowTick);
 
   if (diffMs <= 0) return "Waktu habis";
@@ -174,18 +173,62 @@ export function getCountdownText(
   return `${seconds}d`;
 }
 
-export function isExpired(
-  jamSelesai?: string | null,
-  nowTick = Date.now()
-) {
+export function isExpired(jamSelesai?: string | null, nowTick = Date.now()) {
   return getRemainingMs(jamSelesai, nowTick) <= 0;
 }
 
-export function hitungSubtotalSewaTampil(
-  hargaPerJam: number,
-  durasiMenit: number
-) {
+export function hitungSubtotalSewaTampil(hargaPerJam: number, durasiMenit: number) {
   return Math.round((hargaPerJam / 60) * durasiMenit);
+}
+
+export function getTotalSewa(transaksi?: MonitoringTransaksi | null) {
+  return Number(
+    transaksi?.detail_sewa?.reduce((sum, item) => sum + Number(item.subtotal || 0), 0) || 0
+  );
+}
+
+export function getTotalProduk(transaksi?: MonitoringTransaksi | null) {
+  return Number(
+    transaksi?.detail_produk?.reduce((sum, item) => sum + Number(item.subtotal || 0), 0) || 0
+  );
+}
+
+export function getTotalTransaksiCalculated(transaksi?: MonitoringTransaksi | null) {
+  return getTotalSewa(transaksi) + getTotalProduk(transaksi);
+}
+
+export function getNormalizedStatusBayarLocal(transaksi?: MonitoringTransaksi | null) {
+  const raw = transaksi?.pembayaran?.status_bayar ?? "";
+  const value = raw.toString().trim().toLowerCase();
+
+  if (!value) return "belum bayar";
+  if (["paid", "success", "settlement", "capture", "lunas"].includes(value)) return "lunas";
+  if (["menuggu", "pending", "menunggu", "belum bayar"].includes(value)) return "belum bayar";
+  if (["menunggu_validasi", "menunggu_verifikasi"].includes(value)) return "menunggu validasi";
+  return value;
+}
+
+export function getSudahDibayar(transaksi?: MonitoringTransaksi | null) {
+  const normalized = getNormalizedStatusBayarLocal(transaksi);
+  if (normalized === "lunas") {
+    return Number(transaksi?.pembayaran?.total_bayar || getTotalTransaksiCalculated(transaksi));
+  }
+  return Number(transaksi?.pembayaran?.total_bayar || 0);
+}
+
+export function canBayarTransaksiLocal(transaksi?: MonitoringTransaksi | null) {
+  if (!transaksi) return false;
+  const normalized = getNormalizedStatusBayarLocal(transaksi);
+  const status = (transaksi.status_transaksi || "").toLowerCase();
+  if (["selesai", "dibatalkan", "ditolak"].includes(status)) return false;
+  return normalized !== "lunas";
+}
+
+export function canSelesaikanTransaksiLocal(transaksi?: MonitoringTransaksi | null) {
+  if (!transaksi) return false;
+  const normalized = getNormalizedStatusBayarLocal(transaksi);
+  const status = (transaksi.status_transaksi || "").toLowerCase();
+  return status === "aktif" && normalized === "lunas";
 }
 
 function escapeHtml(value: string) {
@@ -195,6 +238,21 @@ function escapeHtml(value: string) {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#039;");
+}
+
+
+export function formatDateTimeLocal(date = new Date()) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  const hours = String(date.getHours()).padStart(2, "0");
+  const minutes = String(date.getMinutes()).padStart(2, "0");
+  return `${year}-${month}-${day}T${hours}:${minutes}`;
+}
+
+export function toLaravelDateTime(value: string) {
+  if (!value) return "";
+  return value.replace("T", " ") + ":00";
 }
 
 export function buildReceiptHtml(transaksi: MonitoringTransaksi) {
@@ -207,19 +265,31 @@ export function buildReceiptHtml(transaksi: MonitoringTransaksi) {
     0
   );
 
+  const pembayaran = transaksi.pembayaran ?? null;
+  const metodeBayar = pembayaran?.metode_pembayaran ?? "-";
+  const statusBayar = pembayaran?.status_bayar ?? "-";
+  const totalBayar = Number(pembayaran?.total_bayar || 0);
+  const kembalian = Number(pembayaran?.kembalian || 0);
+  const waktuBayar = pembayaran?.waktu_bayar
+    ? formatDateTime(pembayaran.waktu_bayar)
+    : "-";
+
   const sewaRows =
     transaksi.detail_sewa.length > 0
       ? transaksi.detail_sewa
           .map((item) => {
-            const durasi = formatDurasiMenit(getDurasiMenit(item));
+            const durasiMenit = getDurasiMenit(item);
+            const durasi = formatDurasiMenit(durasiMenit);
             const namaPs = item.playstation?.nomor_ps ?? "-";
             const tipe = item.playstation?.tipe?.nama_tipe ?? item.tipe_ps ?? "-";
+            const hargaPerJam = Number(item.harga_perjam || 0);
 
             return `
               <tr>
                 <td>${escapeHtml(namaPs)}</td>
                 <td>${escapeHtml(tipe)}</td>
-                <td>${escapeHtml(durasi)}</td>
+                <td style="text-align:right">${escapeHtml(formatRupiah(hargaPerJam))}</td>
+                <td style="text-align:center">${escapeHtml(durasi)}</td>
                 <td style="text-align:right">${escapeHtml(
                   formatRupiah(Number(item.subtotal || 0))
                 )}</td>
@@ -229,7 +299,7 @@ export function buildReceiptHtml(transaksi: MonitoringTransaksi) {
           .join("")
       : `
           <tr>
-            <td colspan="4" style="text-align:center;color:#777">Tidak ada item sewa</td>
+            <td colspan="5" style="text-align:center;color:#777">Tidak ada item sewa</td>
           </tr>
         `;
 
@@ -238,9 +308,12 @@ export function buildReceiptHtml(transaksi: MonitoringTransaksi) {
       ? transaksi.detail_produk
           .map((item) => {
             const nama = item.produk?.nama ?? "-";
+            const hargaSatuan = Number(item.produk?.harga || 0);
+
             return `
               <tr>
                 <td>${escapeHtml(nama)}</td>
+                <td style="text-align:right">${escapeHtml(formatRupiah(hargaSatuan))}</td>
                 <td style="text-align:center">${escapeHtml(String(item.qty))}</td>
                 <td style="text-align:right">${escapeHtml(
                   formatRupiah(Number(item.subtotal || 0))
@@ -251,7 +324,7 @@ export function buildReceiptHtml(transaksi: MonitoringTransaksi) {
           .join("")
       : `
           <tr>
-            <td colspan="3" style="text-align:center;color:#777">Tidak ada produk</td>
+            <td colspan="4" style="text-align:center;color:#777">Tidak ada produk</td>
           </tr>
         `;
 
@@ -261,88 +334,104 @@ export function buildReceiptHtml(transaksi: MonitoringTransaksi) {
       <head>
         <meta charset="utf-8" />
         <title>Struk Transaksi #${transaksi.id_transaksi}</title>
+        <style>
+          body {
+            font-family: Arial, sans-serif;
+            font-size: 12px;
+            color: #111;
+            padding: 16px;
+          }
+          h1, h2 {
+            margin: 0 0 8px;
+          }
+          .section {
+            margin-top: 16px;
+          }
+          table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 8px;
+          }
+          td, th {
+            padding: 6px 4px;
+            border-bottom: 1px solid #ddd;
+            font-size: 12px;
+          }
+          .summary-row {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 6px;
+          }
+          .total {
+            font-weight: bold;
+            font-size: 13px;
+          }
+          .muted {
+            color: #666;
+          }
+        </style>
       </head>
       <body onload="window.print()">
-        <div>
-          <h1>Struk Rental PS</h1>
-          <div>Tanggal: ${escapeHtml(formatDateTime(transaksi.tanggal))}</div>
-          <div>Pelanggan: ${escapeHtml(transaksi.user?.name ?? "-")}</div>
+        <h1>Struk Rental PS</h1>
+        <div>Tanggal Transaksi: ${escapeHtml(formatDateTime(transaksi.tanggal))}</div>
+        <div>Pelanggan: ${escapeHtml(transaksi.user?.name ?? "-")}</div>
+        <div>No. Transaksi: #${escapeHtml(String(transaksi.id_transaksi))}</div>
 
+        <div class="section">
           <h2>Detail Sewa</h2>
           <table>
+            <thead>
+              <tr>
+                <th align="left">PS</th>
+                <th align="left">Tipe</th>
+                <th align="right">Harga/Jam</th>
+                <th align="center">Durasi</th>
+                <th align="right">Subtotal</th>
+              </tr>
+            </thead>
             <tbody>${sewaRows}</tbody>
           </table>
+        </div>
 
+        <div class="section">
           <h2>Detail Produk</h2>
           <table>
+            <thead>
+              <tr>
+                <th align="left">Produk</th>
+                <th align="right">Harga</th>
+                <th align="center">Qty</th>
+                <th align="right">Subtotal</th>
+              </tr>
+            </thead>
             <tbody>${produkRows}</tbody>
           </table>
+        </div>
 
-          <div>Total sewa: ${escapeHtml(formatRupiah(totalSewa))}</div>
-          <div>Total produk: ${escapeHtml(formatRupiah(totalProduk))}</div>
-          <div>Grand total: ${escapeHtml(
-            formatRupiah(Number(transaksi.total_harga || 0))
-          )}</div>
+        <div class="section">
+          <div class="summary-row">
+            <span>Total sewa</span>
+            <span>${escapeHtml(formatRupiah(totalSewa))}</span>
+          </div>
+          <div class="summary-row">
+            <span>Total produk</span>
+            <span>${escapeHtml(formatRupiah(totalProduk))}</span>
+          </div>
+          <div class="summary-row total">
+            <span>Grand total</span>
+            <span>${escapeHtml(formatRupiah(Number(transaksi.total_harga || 0)))}</span>
+          </div>
+        </div>
+
+        <div class="section">
+          <h2>Pembayaran</h2>
+          <div>Metode: ${escapeHtml(String(metodeBayar))}</div>
+          <div>Status: ${escapeHtml(String(statusBayar))}</div>
+          <div>Waktu bayar: ${escapeHtml(String(waktuBayar))}</div>
+          <div>Total dibayar: ${escapeHtml(formatRupiah(totalBayar))}</div>
+          <div>Kembalian: ${escapeHtml(formatRupiah(kembalian))}</div>
         </div>
       </body>
     </html>
   `;
-}
-
-export function printReceipt(transaksi: MonitoringTransaksi) {
-  const popup = window.open("", "_blank", "width=420,height=700");
-  if (!popup) return;
-
-  popup.document.open();
-  popup.document.write(buildReceiptHtml(transaksi));
-  popup.document.close();
-  popup.focus();
-}
-
-export function getDetailProdukKey(
-  item: {
-    id_detail_produk?: number | null;
-    id_produk?: number | null;
-    produk?: { nama?: string | null } | null;
-    qty?: number | null;
-    subtotal?: number | null;
-  },
-  index: number
-) {
-  return [
-    item.id_detail_produk ?? "detail-produk",
-    item.id_produk ?? "produk",
-    item.produk?.nama ?? "tanpa-nama",
-    item.qty ?? 0,
-    item.subtotal ?? 0,
-    index,
-  ].join("-");
-}
-
-export function getDetailSewaKey(
-  item: {
-    id_dt_booking?: number | null;
-    id_ps?: number | null;
-    jam_mulai?: string | null;
-    jam_selesai?: string | null;
-  },
-  index: number
-) {
-  return [
-    item.id_dt_booking ?? "detail-sewa",
-    item.id_ps ?? "ps",
-    item.jam_mulai ?? "mulai",
-    item.jam_selesai ?? "selesai",
-    index,
-  ].join("-");
-}
-
-export function findActiveSewaForPs(
-  transaksi: MonitoringTransaksi | null | undefined,
-  idPs: number
-): MonitoringDetailSewa | undefined {
-  return (
-    transaksi?.detail_sewa?.find((detail) => detail.id_ps === idPs) ??
-    transaksi?.detail_sewa?.[0]
-  );
 }

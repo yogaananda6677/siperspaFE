@@ -1,6 +1,8 @@
 import type { Dispatch, SetStateAction } from "react";
 import type { MonitoringPlaystation, Pelanggan, Produk } from "@/lib/api";
 import {
+  canBayarTransaksiLocal,
+  canSelesaikanTransaksiLocal,
   findActiveSewaForPs,
   formatDateTime,
   formatDurasiMenit,
@@ -9,6 +11,11 @@ import {
   getDetailProdukKey,
   getDetailSewaKey,
   getDurasiMenit,
+  getNormalizedStatusBayarLocal,
+  getSudahDibayar,
+  getTotalProduk,
+  getTotalSewa,
+  getTotalTransaksiCalculated,
   isExpired,
   STATUS_CONFIG,
 } from "../lib/helpers";
@@ -32,12 +39,7 @@ import {
   tabButton,
 } from "../lib/styles";
 import type { ActiveTab, CartItem } from "../lib/types";
-import { ProductPicker } from "./ProductPicker";
-import {
-  canBayarTransaksi,
-  canSelesaikanTransaksi,
-  getNormalizedStatusBayar,
-} from "@/lib/transaksi-status";
+import { ProductPicker } from "../components/ProductPicker";
 
 type MonitoringModalProps = {
   selected: MonitoringPlaystation;
@@ -57,8 +59,6 @@ type MonitoringModalProps = {
   grandTotal: number;
   filteredProdukKasir: Produk[];
   cart: CartItem[];
-  productKeyword: string;
-  setProductKeyword: Dispatch<SetStateAction<string>>;
   addToCart: (produk: Produk) => void;
   changeQty: (id_produk: number, delta: number) => void;
   submittingCreate: boolean;
@@ -78,7 +78,7 @@ type MonitoringModalProps = {
   submittingBayar: boolean;
   onBayar: () => void;
   isMutating: boolean;
-    qrisUrl: string | null;
+  qrisUrl: string | null;
   qrisExpiredAt: string | null;
   qrisOrderId: string | null;
 };
@@ -101,8 +101,6 @@ export function MonitoringModal({
   grandTotal,
   filteredProdukKasir,
   cart,
-  productKeyword,
-  setProductKeyword,
   addToCart,
   changeQty,
   submittingCreate,
@@ -122,7 +120,7 @@ export function MonitoringModal({
   submittingBayar,
   onBayar,
   isMutating,
-    qrisUrl,
+  qrisUrl,
   qrisExpiredAt,
   qrisOrderId,
 }: MonitoringModalProps) {
@@ -176,15 +174,12 @@ export function MonitoringModal({
             grandTotal={grandTotal}
             filteredProdukKasir={filteredProdukKasir}
             cart={cart}
-            productKeyword={productKeyword}
-            setProductKeyword={setProductKeyword}
             addToCart={addToCart}
             changeQty={changeQty}
             submittingCreate={submittingCreate}
             onCreateTransaksi={onCreateTransaksi}
             isMutating={isMutating}
-            
-          />
+            />
         )}
 
         {selected.status_ps === "digunakan" && selected.active_transaksi && (
@@ -197,8 +192,6 @@ export function MonitoringModal({
             produkSubtotal={produkSubtotal}
             filteredProdukKasir={filteredProdukKasir}
             cart={cart}
-            productKeyword={productKeyword}
-            setProductKeyword={setProductKeyword}
             addToCart={addToCart}
             changeQty={changeQty}
             submittingTambahProduk={submittingTambahProduk}
@@ -218,7 +211,7 @@ export function MonitoringModal({
             qrisUrl={qrisUrl}
             qrisExpiredAt={qrisExpiredAt}
             qrisOrderId={qrisOrderId}
-          />
+            />
         )}
 
         {selected.status_ps === "maintenance" && <MaintenanceSection />}
@@ -228,11 +221,13 @@ export function MonitoringModal({
 }
 
 function SummaryInfo({ selected }: { selected: MonitoringPlaystation }) {
+  const statusBayar = getNormalizedStatusBayarLocal(selected.active_transaksi ?? null);
+
   return (
     <div
       style={{
         display: "grid",
-        gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
+        gridTemplateColumns: "repeat(5, minmax(0, 1fr))",
         gap: 12,
         marginBottom: 18,
       }}
@@ -241,6 +236,7 @@ function SummaryInfo({ selected }: { selected: MonitoringPlaystation }) {
         ["Nomor PS", selected.nomor_ps],
         ["Tipe", selected.tipe?.nama_tipe ?? "-"],
         ["Status PS", STATUS_CONFIG[selected.status_ps].label],
+        ["Status Bayar", statusBayar],
         [
           "Ref Transaksi",
           selected.active_transaksi ? `#${selected.active_transaksi.id_transaksi}` : "-",
@@ -268,8 +264,6 @@ function CreateTransaksiSection({
   grandTotal,
   filteredProdukKasir,
   cart,
-  productKeyword,
-  setProductKeyword,
   addToCart,
   changeQty,
   submittingCreate,
@@ -288,8 +282,6 @@ function CreateTransaksiSection({
   grandTotal: number;
   filteredProdukKasir: Produk[];
   cart: CartItem[];
-  productKeyword: string;
-  setProductKeyword: Dispatch<SetStateAction<string>>;
   addToCart: (produk: Produk) => void;
   changeQty: (id_produk: number, delta: number) => void;
   submittingCreate: boolean;
@@ -385,16 +377,13 @@ function CreateTransaksiSection({
         </div>
       </div>
 
-      <ProductPicker
+        <ProductPicker
         filteredProdukKasir={filteredProdukKasir}
         cart={cart}
-        productKeyword={productKeyword}
-        onProductKeywordChange={setProductKeyword}
         onAddToCart={addToCart}
         onChangeQty={changeQty}
         disabled={isMutating}
-      />
-
+        />
       <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 16 }}>
         <button
           onClick={onCreateTransaksi}
@@ -417,8 +406,6 @@ function ActiveTransaksiSection({
   produkSubtotal,
   filteredProdukKasir,
   cart,
-  productKeyword,
-  setProductKeyword,
   addToCart,
   changeQty,
   submittingTambahProduk,
@@ -435,7 +422,7 @@ function ActiveTransaksiSection({
   onSelesaikan,
   onBayar,
   isMutating,
-    qrisUrl,
+  qrisUrl,
   qrisExpiredAt,
   qrisOrderId,
 }: {
@@ -447,8 +434,6 @@ function ActiveTransaksiSection({
   produkSubtotal: number;
   filteredProdukKasir: Produk[];
   cart: CartItem[];
-  productKeyword: string;
-  setProductKeyword: Dispatch<SetStateAction<string>>;
   addToCart: (produk: Produk) => void;
   changeQty: (id_produk: number, delta: number) => void;
   submittingTambahProduk: boolean;
@@ -473,16 +458,33 @@ function ActiveTransaksiSection({
   const sewaAktif = findActiveSewaForPs(transaksi, selected.id_ps);
   const expired = isExpired(sewaAktif?.jam_selesai, nowTick);
 
+  const jamSelesaiTs = sewaAktif?.jam_selesai ? new Date(sewaAktif.jam_selesai).getTime() : null;
+  const remainingMs = jamSelesaiTs ? jamSelesaiTs - nowTick : null;
+  const isLockedByH30 = !expired && remainingMs !== null && remainingMs <= 30 * 60 * 1000;
+
   const pembayaranAktif = transaksi.pembayaran ?? null;
-  const statusBayar = getNormalizedStatusBayar(transaksi);
-  const bisaBayar = canBayarTransaksi(transaksi);
-  const bisaSelesaikan = canSelesaikanTransaksi(transaksi);
+  const statusBayar = getNormalizedStatusBayarLocal(transaksi);
+  const bisaBayar = canBayarTransaksiLocal(transaksi);
+  const bisaSelesaikan = canSelesaikanTransaksiLocal(transaksi);
 
   const sudahLunas = statusBayar === "lunas";
-  const totalAktif = Number(transaksi.total_harga || 0);
-  const nominalBayar =
-    metodePembayaran === "online" ? totalAktif : Number(jumlahBayar || 0);
-  const kembalianCash = Math.max(0, nominalBayar - totalAktif);
+  const totalSewa = getTotalSewa(transaksi);
+  const totalProduk = getTotalProduk(transaksi);
+  const totalAktif = getTotalTransaksiCalculated(transaksi);
+  const sudahDibayar = getSudahDibayar(transaksi);
+  const sisaTagihan = Math.max(0, totalAktif - sudahDibayar);
+const nominalBayarPreview =
+  metodePembayaran === "online" ? sisaTagihan : Number(jumlahBayar || 0);
+
+const nominalBayarTampil =
+  pembayaranAktif && statusBayar === "lunas"
+    ? Number(pembayaranAktif.total_bayar || 0)
+    : nominalBayarPreview;
+
+const kembalianCash =
+  pembayaranAktif && statusBayar === "lunas"
+    ? Number(pembayaranAktif.kembalian || 0)
+    : Math.max(0, nominalBayarPreview - sisaTagihan);
 
   const lockedTabButton = (active: boolean) => ({
     ...tabButton(active),
@@ -497,9 +499,15 @@ function ActiveTransaksiSection({
           marginBottom: 16,
           padding: "14px 16px",
           borderRadius: 12,
-          background: expired ? "rgba(248,113,113,0.08)" : "rgba(251,146,60,0.08)",
+          background: expired
+            ? "rgba(248,113,113,0.08)"
+            : isLockedByH30
+            ? "rgba(250,204,21,0.08)"
+            : "rgba(251,146,60,0.08)",
           border: expired
             ? "1px solid rgba(248,113,113,0.2)"
+            : isLockedByH30
+            ? "1px solid rgba(250,204,21,0.2)"
             : "1px solid rgba(251,146,60,0.2)",
           display: "flex",
           justifyContent: "space-between",
@@ -508,14 +516,36 @@ function ActiveTransaksiSection({
           flexWrap: "wrap",
         }}
       >
-        <span style={{ fontSize: 13, color: expired ? "#fca5a5" : "#f0c08a" }}>
-          {expired ? "Waktu bermain habis" : "Waktu bermain berjalan"}
-        </span>
+        <div>
+          <div
+            style={{
+              fontSize: 13,
+              color: expired
+                ? "#fca5a5"
+                : isLockedByH30
+                ? "#fde68a"
+                : "#f0c08a",
+            }}
+          >
+            {expired
+              ? "Waktu bermain habis"
+              : isLockedByH30
+              ? "H-30 menit • transaksi dikunci"
+              : "Waktu bermain berjalan"}
+          </div>
+
+          {isLockedByH30 && !expired ? (
+            <div style={{ fontSize: 12, color: "#d6bc74", marginTop: 6 }}>
+              Tambah waktu dan tambah produk dinonaktifkan. Reservasi PS ini sudah dibuka untuk pelanggan lain.
+            </div>
+          ) : null}
+        </div>
+
         <span
           style={{
             fontSize: 16,
             fontWeight: 700,
-            color: expired ? "#f87171" : "#fb923c",
+            color: expired ? "#f87171" : isLockedByH30 ? "#facc15" : "#fb923c",
           }}
         >
           {getCountdownText(sewaAktif?.jam_selesai, nowTick)}
@@ -631,7 +661,7 @@ function ActiveTransaksiSection({
                   value={menitTambahan}
                   onChange={(e) => setMenitTambahan(Number(e.target.value))}
                   style={{ ...inputStyle, minWidth: 160 }}
-                  disabled={isMutating}
+                  disabled={isMutating || isLockedByH30}
                 >
                   {[30, 60, 90, 120].map((m) => (
                     <option key={m} value={m}>
@@ -643,10 +673,21 @@ function ActiveTransaksiSection({
 
               <button
                 onClick={onTambahWaktu}
-                disabled={submittingTambahWaktu || isMutating}
-                style={primaryBtnStyle}
+                disabled={submittingTambahWaktu || isMutating || isLockedByH30}
+                style={{
+                  ...primaryBtnStyle,
+                  opacity: submittingTambahWaktu || isMutating || isLockedByH30 ? 0.6 : 1,
+                  cursor:
+                    submittingTambahWaktu || isMutating || isLockedByH30
+                      ? "not-allowed"
+                      : "pointer",
+                }}
               >
-                {submittingTambahWaktu ? "Memproses..." : "Tambah Waktu"}
+                {isLockedByH30
+                  ? "Terkunci H-30"
+                  : submittingTambahWaktu
+                  ? "Memproses..."
+                  : "Tambah Waktu"}
               </button>
             </div>
           </div>
@@ -683,6 +724,12 @@ function ActiveTransaksiSection({
             Detail Produk & Tambah Produk
           </h3>
 
+          {isLockedByH30 ? (
+            <div style={{ ...emptyNoticeStyle, marginBottom: 14 }}>
+              Penambahan produk sudah dikunci karena waktu sewa tinggal 30 menit atau kurang.
+            </div>
+          ) : null}
+
           {transaksi.detail_produk.length === 0 ? (
             <div style={{ ...emptyNoticeStyle, marginBottom: 14 }}>
               Belum ada produk pada transaksi ini.
@@ -714,11 +761,9 @@ function ActiveTransaksiSection({
           <ProductPicker
             filteredProdukKasir={filteredProdukKasir}
             cart={cart}
-            productKeyword={productKeyword}
-            onProductKeywordChange={setProductKeyword}
             onAddToCart={addToCart}
             onChangeQty={changeQty}
-            disabled={isMutating}
+            disabled={isMutating || isLockedByH30}
           />
 
           <div
@@ -737,10 +782,21 @@ function ActiveTransaksiSection({
 
             <button
               onClick={onTambahProduk}
-              disabled={submittingTambahProduk || isMutating}
-              style={primaryBtnStyle}
+              disabled={submittingTambahProduk || isMutating || isLockedByH30}
+              style={{
+                ...primaryBtnStyle,
+                opacity: submittingTambahProduk || isMutating || isLockedByH30 ? 0.6 : 1,
+                cursor:
+                  submittingTambahProduk || isMutating || isLockedByH30
+                    ? "not-allowed"
+                    : "pointer",
+              }}
             >
-              {submittingTambahProduk ? "Menambahkan..." : "Tambah Produk"}
+              {isLockedByH30
+                ? "Terkunci H-30"
+                : submittingTambahProduk
+                ? "Menambahkan..."
+                : "Tambah Produk"}
             </button>
           </div>
         </div>
@@ -753,19 +809,91 @@ function ActiveTransaksiSection({
           <div
             style={{
               display: "grid",
-              gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-              gap: 12,
-              marginBottom: 14,
+              gridTemplateColumns: "1.1fr 0.9fr",
+              gap: 14,
+              marginBottom: 16,
             }}
           >
-            <div style={miniBoxStyle}>
-              <div style={miniLabelStyle}>Total Tagihan</div>
-              <div style={miniValueStyle}>{formatRupiah(totalAktif)}</div>
+            <div style={itemCardStyle}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: "#f0eaff", marginBottom: 10 }}>
+                Ringkasan Pesanan
+              </div>
+
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                {transaksi.detail_sewa.map((sewa, index) => (
+                  <div
+                    key={getDetailSewaKey(sewa, index)}
+                    style={{
+                      paddingBottom: 10,
+                      borderBottom: "1px solid rgba(255,255,255,0.06)",
+                    }}
+                  >
+                    <div style={{ fontSize: 13, color: "#f0eaff", fontWeight: 600 }}>
+                      Sewa PS {sewa.playstation?.nomor_ps ?? "-"}
+                    </div>
+                    <div style={{ fontSize: 12, color: "#9b8ec4", marginTop: 4 }}>
+                      {sewa.playstation?.tipe?.nama_tipe ?? sewa.tipe_ps ?? "-"} •{" "}
+                      {formatDurasiMenit(getDurasiMenit(sewa))}
+                    </div>
+                    <div style={{ fontSize: 12, color: "#c9aff5", marginTop: 4 }}>
+                      {formatRupiah(Number(sewa.subtotal || 0))}
+                    </div>
+                  </div>
+                ))}
+
+                {transaksi.detail_produk.length > 0 ? (
+                  transaksi.detail_produk.map((detail, index) => (
+                    <div
+                      key={getDetailProdukKey(detail, index)}
+                      style={{
+                        paddingBottom: 10,
+                        borderBottom: "1px solid rgba(255,255,255,0.06)",
+                      }}
+                    >
+                      <div style={{ fontSize: 13, color: "#f0eaff", fontWeight: 600 }}>
+                        {detail.produk?.nama ?? "-"}
+                      </div>
+                      <div style={{ fontSize: 12, color: "#9b8ec4", marginTop: 4 }}>
+                        {detail.qty} x {formatRupiah(detail.produk?.harga ?? 0)}
+                      </div>
+                      <div style={{ fontSize: 12, color: "#c9aff5", marginTop: 4 }}>
+                        {formatRupiah(Number(detail.subtotal || 0))}
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div style={{ fontSize: 12.5, color: "#9b8ec4" }}>
+                    Tidak ada produk tambahan.
+                  </div>
+                )}
+              </div>
             </div>
 
-            <div style={miniBoxStyle}>
-              <div style={miniLabelStyle}>Status Pembayaran</div>
-              <div style={miniValueStyle}>{statusBayar || "belum dibayar"}</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              <div style={miniBoxStyle}>
+                <div style={miniLabelStyle}>Total sewa</div>
+                <div style={miniValueStyle}>{formatRupiah(totalSewa)}</div>
+              </div>
+
+              <div style={miniBoxStyle}>
+                <div style={miniLabelStyle}>Total produk</div>
+                <div style={miniValueStyle}>{formatRupiah(totalProduk)}</div>
+              </div>
+
+              <div style={miniBoxStyle}>
+                <div style={miniLabelStyle}>Sudah dibayar</div>
+                <div style={miniValueStyle}>{formatRupiah(sudahDibayar)}</div>
+              </div>
+
+              <div style={miniBoxStyle}>
+                <div style={miniLabelStyle}>Sisa tagihan</div>
+                <div style={miniValueStyle}>{formatRupiah(sisaTagihan)}</div>
+              </div>
+
+              <div style={miniBoxStyle}>
+                <div style={miniLabelStyle}>Status pembayaran</div>
+                <div style={miniValueStyle}>{statusBayar}</div>
+              </div>
             </div>
           </div>
 
@@ -807,7 +935,7 @@ function ActiveTransaksiSection({
               <input
                 type="number"
                 min={0}
-                value={metodePembayaran === "online" ? String(totalAktif) : jumlahBayar}
+                value={metodePembayaran === "online" ? String(sisaTagihan) : jumlahBayar}
                 onChange={(e) => setJumlahBayar(e.target.value)}
                 style={inputStyle}
                 disabled={sudahLunas || metodePembayaran === "online" || isMutating}
@@ -818,71 +946,83 @@ function ActiveTransaksiSection({
           {metodePembayaran === "cash" && (
             <div
               style={{
+                marginBottom: 14,
+                padding: "14px 16px",
+                borderRadius: 12,
+                background: "rgba(159,110,245,0.08)",
+                border: "1px solid rgba(159,110,245,0.15)",
                 display: "grid",
                 gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
                 gap: 12,
-                marginBottom: 14,
               }}
             >
-              <div style={summaryBoxStyle}>
-                <div style={summaryLabelStyle}>Nominal dibayar</div>
-                <div style={summaryValueStyle}>{formatRupiah(nominalBayar)}</div>
+              <div>
+                <div style={{ fontSize: 12, color: "#9b8ec4", marginBottom: 6 }}>
+                  Nominal masuk
+                </div>
+                <div style={{ fontSize: 16, fontWeight: 700, color: "#f0eaff" }}>
+                  {formatRupiah(nominalBayarTampil)}
+                </div>
               </div>
 
-              <div style={summaryBoxStyle}>
-                <div style={summaryLabelStyle}>Kembalian</div>
-                <div style={summaryValueStyle}>{formatRupiah(kembalianCash)}</div>
+              <div>
+                <div style={{ fontSize: 12, color: "#9b8ec4", marginBottom: 6 }}>
+                  Kembalian
+                </div>
+                <div style={{ fontSize: 16, fontWeight: 700, color: "#f0eaff" }}>
+                  {formatRupiah(kembalianCash)}
+                </div>
               </div>
             </div>
           )}
 
           {metodePembayaran === "online" && (
-  <div
-    style={{
-      ...emptyNoticeStyle,
-      marginBottom: 14,
-      display: "flex",
-      flexDirection: "column",
-      gap: 10,
-      alignItems: "flex-start",
-    }}
-  >
-    <div>
-      Online payment akan membuat QRIS. Status pembayaran akan tetap
-      <strong> menunggu </strong>
-      sampai dibayar oleh pelanggan.
-    </div>
+            <div
+              style={{
+                ...emptyNoticeStyle,
+                marginBottom: 14,
+                display: "flex",
+                flexDirection: "column",
+                gap: 10,
+                alignItems: "flex-start",
+              }}
+            >
+              <div>
+                Online payment akan membuat QRIS. Status pembayaran akan tetap
+                <strong> menunggu </strong>
+                sampai dibayar oleh pelanggan.
+              </div>
 
-    {qrisOrderId && (
-      <div>
-        <strong>Order ID:</strong> {qrisOrderId}
-      </div>
-    )}
+              {qrisOrderId && (
+                <div>
+                  <strong>Order ID:</strong> {qrisOrderId}
+                </div>
+              )}
 
-    {qrisExpiredAt && (
-      <div>
-        <strong>Berlaku sampai:</strong> {formatDateTime(qrisExpiredAt)}
-      </div>
-    )}
+              {qrisExpiredAt && (
+                <div>
+                  <strong>Berlaku sampai:</strong> {formatDateTime(qrisExpiredAt)}
+                </div>
+              )}
 
-    {qrisUrl && (
-      <div
-        style={{
-          padding: 12,
-          borderRadius: 12,
-          background: "#fff",
-          display: "inline-flex",
-        }}
-      >
-        <img
-          src={qrisUrl}
-          alt="QRIS Payment"
-          style={{ width: 220, height: 220, objectFit: "contain" }}
-        />
-      </div>
-    )}
-  </div>
-)}
+              {qrisUrl && (
+                <div
+                  style={{
+                    padding: 12,
+                    borderRadius: 12,
+                    background: "#fff",
+                    display: "inline-flex",
+                  }}
+                >
+                  <img
+                    src={qrisUrl}
+                    alt="QRIS Payment"
+                    style={{ width: 220, height: 220, objectFit: "contain" }}
+                  />
+                </div>
+              )}
+            </div>
+          )}
 
           <div
             style={{
@@ -909,10 +1049,10 @@ function ActiveTransaksiSection({
                     : "pointer",
               }}
             >
-                {submittingBayar
+              {submittingBayar
                 ? metodePembayaran === "online"
-                    ? "Membuat QRIS..."
-                    : "Menyimpan..."
+                  ? "Membuat QRIS..."
+                  : "Menyimpan..."
                 : sudahLunas
                 ? "Sudah Lunas"
                 : metodePembayaran === "online"
@@ -939,7 +1079,7 @@ function ActiveTransaksiSection({
       >
         <span style={{ fontSize: 13, color: "#9b8ec4" }}>Total transaksi saat ini</span>
         <span style={{ fontSize: 16, fontWeight: 700, color: "#f0eaff" }}>
-          {formatRupiah(Number(transaksi.total_harga || 0))}
+          {formatRupiah(totalAktif)}
         </span>
       </div>
     </>

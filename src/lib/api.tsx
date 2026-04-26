@@ -291,7 +291,7 @@ export type MonitoringPembayaran = {
   total_bayar: number;
   kembalian: number;
   waktu_bayar: string | null;
-  status_bayar: "menunggu" | "lunas" | "gagal" | "menunggu_validasi";
+  status_bayar: "menuggu" | "lunas" | "gagal" | "menunggu_validasi";
 };
 
 export type BayarTransaksiPayload = {
@@ -737,7 +737,7 @@ export async function bayarTransaksi(
   id: number,
   payload: BayarTransaksiPayload
 ): Promise<MonitoringTransaksi> {
-  const res = await fetch(`${BASE_URL}/transaksi/${id}/bayar`, {
+  const res = await fetch(`${BASE_URL}/transaksi/admin/${id}/bayar`, {
     method: "PATCH",
     headers: authHeaders(),
     body: JSON.stringify(payload),
@@ -1096,125 +1096,42 @@ export async function konfirmasiCashPembayaran(
 
   return handleResponse<{ message: string; data: CashPendingItem }>(res);
 }
+
+export type AdminDashboardNotification = {
+  type: string;
+  title: string;
+  message: string;
+  count: number;
+  href: string;
+};
+
+export type AdminDashboardInformativeCard = {
+  key: string;
+  label: string;
+  value: number;
+  sub: string;
+  color: string;
+  href: string;
+  is_currency?: boolean;
+};
+
+export type AdminDashboardChartPoint = {
+  date: string;
+  label: string;
+  total: number;
+};
+
 export type AdminDashboardResponse = {
   message: string;
   data: {
-    stats: {
-      total_transaksi: number;
-      waiting_approval: number;
-      aktif: number;
-      selesai: number;
-      menunggu_bayar: number;
-      total_omzet: number;
+    notifications: AdminDashboardNotification[];
+    informative_cards: AdminDashboardInformativeCard[];
+    omzet_chart: {
+      week: AdminDashboardChartPoint[];
+      month: AdminDashboardChartPoint[];
+      year: AdminDashboardChartPoint[];
     };
-    ps_stats: {
-      tersedia: number;
-      digunakan: number;
-      maintenance: number;
-    };
-    cash_pending_count: number;
-    recent_transaksi: {
-      id_transaksi: number;
-      tanggal: string;
-      total_harga: number;
-      status_transaksi: string;
-      sumber_transaksi?: string;
-      user?: {
-        id_user: number;
-        name: string;
-        username: string;
-        email: string;
-      } | null;
-      pembayaran?: {
-        id_pembayaran?: number;
-        metode_pembayaran?: string;
-        total_bayar?: number;
-        kembalian?: number;
-        waktu_bayar?: string | null;
-        status_bayar?: string;
-      } | null;
-      detail_sewa?: {
-        id_dt_booking?: number;
-        id_ps?: number;
-        jam_mulai?: string;
-        jam_selesai?: string | null;
-        durasi_menit?: number | null;
-        playstation?: {
-          id_ps?: number;
-          nomor_ps?: string;
-          status_ps?: string;
-          tipe?: {
-            id_tipe?: number;
-            nama_tipe?: string;
-          } | null;
-        } | null;
-      }[];
-      detail_produk?: {
-        id_detail_produk?: number;
-        qty?: number;
-        subtotal?: number;
-        produk?: {
-          id_produk?: number;
-          nama?: string;
-          harga?: number;
-        } | null;
-      }[];
-    }[];
-    recent_monitoring: {
-      id_ps: number;
-      nomor_ps: string;
-      status_ps: string;
-      tipe?: {
-        id_tipe?: number;
-        nama_tipe?: string;
-        harga_sewa?: number;
-      } | null;
-      active_transaksi?: {
-        id_transaksi?: number;
-        status_transaksi?: string;
-        user?: {
-          id_user?: number;
-          name?: string;
-          username?: string;
-          email?: string;
-        } | null;
-        pembayaran?: {
-          status_bayar?: string;
-        } | null;
-      } | null;
-    }[];
-    cash_pending: {
-      id_transaksi: number;
-      tanggal: string;
-      total_harga: number;
-      status_transaksi: string;
-      user?: {
-        id_user: number;
-        name: string;
-        username: string;
-        email: string;
-      } | null;
-      pembayaran?: {
-        status_bayar?: string;
-        metode_pembayaran?: string;
-      } | null;
-      detail_sewa?: {
-        id_dt_booking?: number;
-        id_ps?: number;
-        jam_mulai?: string;
-        jam_selesai?: string | null;
-        durasi_menit?: number | null;
-        playstation?: {
-          nomor_ps?: string;
-          tipe?: {
-            nama_tipe?: string;
-          } | null;
-        } | null;
-      }[];
-    }[];
-    highlights: {
-      text: string;
-    };
+    last_updated_at: string;
   };
 };
 

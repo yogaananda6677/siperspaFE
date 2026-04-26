@@ -19,6 +19,7 @@ import {
 } from "@/lib/api";
 import {
   formatDateTimeLocal,
+  getNormalizedStatusBayarLocal,
   hitungSubtotalSewaTampil,
   toLaravelDateTime,
 } from "../lib/helpers";
@@ -71,7 +72,7 @@ export function useMonitoringPage() {
   );
 
   const pembayaranAktif = selected?.active_transaksi?.pembayaran ?? null;
-  const sudahLunas = pembayaranAktif?.status_bayar === "lunas";
+  const sudahLunas = getNormalizedStatusBayarLocal(selected?.active_transaksi ?? null) === "lunas";
   const totalAktif = Number(selected?.active_transaksi?.total_harga || 0);
   const nominalBayar =
     metodePembayaran === "online" ? totalAktif : Number(jumlahBayar || 0);
@@ -84,6 +85,25 @@ export function useMonitoringPage() {
   const showToast = (msg: string, type: "success" | "error") => {
     setToast({ msg, type });
     window.setTimeout(() => setToast(null), 2500);
+  };
+
+  const applyUpdatedTransaksi = (updated: MonitoringTransaksi) => {
+    setData((prev) =>
+      prev.map((item) => {
+        const isSamePs = updated.detail_sewa?.some((sewa) => Number(sewa.id_ps) === Number(item.id_ps));
+        if (!isSamePs) return item;
+        return {
+          ...item,
+          status_ps: "digunakan",
+          active_transaksi: {
+            ...updated,
+            pembayaran: updated.pembayaran
+              ? { ...updated.pembayaran, status_bayar: getNormalizedStatusBayarLocal(updated) === "lunas" ? "lunas" : updated.pembayaran.status_bayar }
+              : updated.pembayaran,
+          },
+        };
+      })
+    );
   };
 
   const fetchAll = async (opts?: { silent?: boolean }) => {
@@ -338,7 +358,7 @@ setQrisOrderId(null);
       return;
     }
 
-    if (selected.active_transaksi.pembayaran?.status_bayar === "lunas") {
+    if (getNormalizedStatusBayarLocal(selected.active_transaksi) === "lunas") {
       showToast("Transaksi yang sudah lunas tidak bisa diubah.", "error");
       return;
     }
@@ -347,13 +367,14 @@ setQrisOrderId(null);
     setSubmittingTambahProduk(true);
 
     try {
-      await tambahProdukKeTransaksi(selected.active_transaksi.id_transaksi, {
+      const updated = await tambahProdukKeTransaksi(selected.active_transaksi.id_transaksi, {
         produk: cart.map((item) => ({
           id_produk: item.id_produk,
           qty: item.qty,
         })),
       });
 
+      applyUpdatedTransaksi(updated);
       await fetchAll({ silent: true });
 
       showToast("Produk berhasil ditambahkan.", "success");
@@ -374,7 +395,7 @@ setQrisOrderId(null);
   const handleTambahWaktu = async () => {
     if (!selected?.active_transaksi || isMutating) return;
 
-    if (selected.active_transaksi.pembayaran?.status_bayar === "lunas") {
+    if (getNormalizedStatusBayarLocal(selected.active_transaksi) === "lunas") {
       showToast("Transaksi yang sudah lunas tidak bisa diubah.", "error");
       return;
     }
@@ -383,11 +404,12 @@ setQrisOrderId(null);
     setSubmittingTambahWaktu(true);
 
     try {
-      await tambahWaktuTransaksi(selected.active_transaksi.id_transaksi, {
+      const updated = await tambahWaktuTransaksi(selected.active_transaksi.id_transaksi, {
         menit_tambahan: menitTambahan,
         id_ps: selected.id_ps,
       });
 
+      applyUpdatedTransaksi(updated);
       await fetchAll({ silent: true });
 
       showToast("Waktu sewa berhasil ditambahkan.", "success");
@@ -418,11 +440,12 @@ setQrisOrderId(null);
 
   try {
     if (metodePembayaran === "cash") {
-      await bayarTransaksi(selected.active_transaksi.id_transaksi, {
+      const updated = await bayarTransaksi(selected.active_transaksi.id_transaksi, {
         metode_pembayaran: "cash",
         total_bayar: nominalBayar,
       });
 
+      applyUpdatedTransaksi(updated);
       await fetchAll({ silent: true });
       showToast("Pembayaran cash berhasil disimpan.", "success");
       setActiveTab("pembayaran");
@@ -481,7 +504,7 @@ setQrisOrderId(null);
   const handleSelesaikan = async () => {
     if (!selected?.active_transaksi || isMutating) return;
 
-    if (selected.active_transaksi.pembayaran?.status_bayar !== "lunas") {
+    if (getNormalizedStatusBayarLocal(selected.active_transaksi) !== "lunas") {
       showToast("Selesaikan transaksi setelah pembayaran lunas.", "error");
       return;
     }
