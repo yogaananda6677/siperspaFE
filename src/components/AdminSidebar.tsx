@@ -104,6 +104,16 @@ const navItems = [
       </svg>
     ),
   },
+  {
+    label: "Kelola Pengaduan",
+    href: "/admin/pengaduan",
+    icon: (
+      <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24">
+        <circle cx="12" cy="8" r="4" />
+        <path d="M4 20c0-4 4-6 8-6s8 2 8 6" />
+      </svg>
+    ),
+  },
 ];
 
 interface AdminSidebarProps {

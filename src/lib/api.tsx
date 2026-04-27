@@ -1,4 +1,4 @@
-const BASE_URL = "http://192.168.1.8:8000/api";
+const BASE_URL = "http://192.168.42.180:8000/api";
 
 // ===== AUTH =====
 export type LoginPayload = {
@@ -1192,4 +1192,129 @@ export async function checkQrisPaymentStatus(id: number) {
   });
 
   return handleResponse<any>(res);
+}
+
+
+// ===== PENGADUAN =====
+// ===== PENGADUAN =====
+export type PengaduanUser = {
+  id_user: number;
+  name: string;
+  username: string;
+  email: string;
+  role?: string;
+};
+
+export type StatusPengaduan = "pending" | "proses" | "selesai" | "dibatalkan";
+
+export type KategoriAduan =
+  | "ps_rusak"
+  | "pelayanan"
+  | "kebersihan"
+  | "pembayaran"
+  | "fasilitas"
+  | "lainnya";
+
+export type PengaduanItem = {
+  id: number;
+  id_pengadu: number;
+  id_admin?: number | null;
+  judul_pengaduan: string;
+  kategori_aduan: KategoriAduan;
+  isi_pengaduan: string;
+  foto_bukti?: string | null;
+  status_pengaduan: StatusPengaduan;
+  catatan_admin?: string | null;
+  ditangani_pada?: string | null;
+  diselesaikan_pada?: string | null;
+  created_at: string;
+  updated_at: string;
+  pengadu?: PengaduanUser | null;
+  admin?: PengaduanUser | null;
+};
+
+export type GetPengaduanResponse = {
+  data: PengaduanItem[];
+  current_page?: number;
+  last_page?: number;
+  per_page?: number;
+  total?: number;
+  summary?: {
+    total: number;
+    aktif: number;
+    pending: number;
+    proses: number;
+    selesai: number;
+    dibatalkan: number;
+  };
+};
+
+export type UpdateStatusPengaduanPayload = {
+  status_pengaduan: StatusPengaduan;
+  catatan_admin?: string | null;
+};
+
+export async function getAdminPengaduans(params?: {
+  search?: string;
+  status?: "aktif" | StatusPengaduan | "";
+  kategori?: KategoriAduan | "";
+  per_page?: number;
+}): Promise<GetPengaduanResponse> {
+  const url = new URL(`${BASE_URL}/admin/pengaduan`);
+
+  if (params?.search) url.searchParams.set("search", params.search);
+  if (params?.status) url.searchParams.set("status", params.status);
+  if (params?.kategori) url.searchParams.set("kategori", params.kategori);
+  if (params?.per_page) url.searchParams.set("per_page", String(params.per_page));
+
+  const res = await fetch(url.toString(), {
+    headers: authHeaders(),
+    cache: "no-store",
+  });
+
+  return handleResponse<GetPengaduanResponse>(res);
+}
+
+export async function getAdminPengaduanSelesai(params?: {
+  search?: string;
+  per_page?: number;
+}): Promise<GetPengaduanResponse> {
+  const url = new URL(`${BASE_URL}/admin/pengaduan/selesai`);
+
+  if (params?.search) url.searchParams.set("search", params.search);
+  if (params?.per_page) url.searchParams.set("per_page", String(params.per_page));
+
+  const res = await fetch(url.toString(), {
+    headers: authHeaders(),
+    cache: "no-store",
+  });
+
+  return handleResponse<GetPengaduanResponse>(res);
+}
+
+export async function updateStatusPengaduan(
+  id: number,
+  payload: UpdateStatusPengaduanPayload
+): Promise<PengaduanItem> {
+  const res = await fetch(`${BASE_URL}/admin/pengaduan/${id}/status`, {
+    method: "PATCH",
+    headers: authHeaders(),
+    body: JSON.stringify(payload),
+  });
+
+  const result = await handleResponse<{
+    message: string;
+    data: PengaduanItem;
+  }>(res);
+
+  return result.data;
+}
+
+export async function deletePengaduan(id: number): Promise<void> {
+  const res = await fetch(`${BASE_URL}/admin/pengaduan/${id}`, {
+    method: "DELETE",
+    headers: authHeaders(),
+  });
+
+  await handleResponse<{ message: string }>(res);
 }
