@@ -65,6 +65,16 @@ const navItems = [
     ),
   },
   {
+  label: "Laporan",
+  href: "/admin/laporan",
+  icon: (
+    <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24">
+      <path d="M9 17v-6M12 17v-3M15 17v-9" strokeLinecap="round" />
+      <rect x="3" y="3" width="18" height="18" rx="2" />
+    </svg>
+  ),
+},
+  {
     label: "Kelola PS",
     href: "/admin/playstation",
     icon: (
