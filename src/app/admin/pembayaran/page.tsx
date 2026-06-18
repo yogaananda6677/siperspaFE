@@ -1,11 +1,15 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+
+import { BrowserQRCodeReader } from "@zxing/browser";
 import {
   getCashPendingPayments,
   konfirmasiCashPembayaran,
   type CashPendingItem,
 } from "@/lib/api";
+
+
 
 const formatRupiah = (n: number) =>
   new Intl.NumberFormat("id-ID", {
@@ -66,6 +70,8 @@ const sectionSub: React.CSSProperties = {
   lineHeight: 1.7,
 };
 
+
+
 type ToastState = {
   msg: string;
   type: "success" | "error" | "info";
@@ -83,6 +89,11 @@ export default function PembayaranCashPage() {
   const prevIdsRef = useRef<Set<number>>(new Set());
   const firstLoadRef = useRef(true);
 
+  const [scanning, setScanning]         = useState(false);
+const [scanError, setScanError]       = useState<string | null>(null);
+const videoRef                         = useRef<HTMLVideoElement>(null);
+const readerRef                        = useRef<BrowserQRCodeReader | null>(null);
+const streamRef                        = useRef<MediaStream | null>(null);
   const showToast = useCallback(
     (msg: string, type: "success" | "error" | "info" = "success") => {
       setToast({ msg, type });
@@ -109,6 +120,69 @@ export default function PembayaranCashPage() {
       icon: "/favicon.ico",
     });
   }, []);
+
+  const startScan = useCallback(async () => {
+  setScanError(null);
+  setScanning(true);
+
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: "environment" },
+    });
+    streamRef.current = stream;
+
+    // Tunggu video element mount
+    await new Promise<void>((res) => setTimeout(res, 150));
+
+    if (!videoRef.current) return;
+    videoRef.current.srcObject = stream;
+    await videoRef.current.play();
+
+    const reader = new BrowserQRCodeReader();
+    readerRef.current = reader;
+
+    // Decode terus-menerus sampai dapat hasil
+    const result = await reader.decodeOnceFromVideoElement(videoRef.current);
+    const scannedId = result.getText().trim();
+
+    stopScan();
+
+    // Cari item di data berdasarkan ID yang di-scan
+    const found = data.find(
+      (item) => String(item.id_transaksi) === scannedId
+    );
+
+    if (found) {
+      setSelected(found);     // buka modal konfirmasi langsung
+    } else {
+      showToast(`ID transaksi #${scannedId} tidak ditemukan dalam antrian`, "error");
+    }
+
+  } catch (e) {
+    stopScan();
+    const msg = e instanceof Error ? e.message : "Gagal mengakses kamera";
+    setScanError(
+      msg.includes("Permission") || msg.includes("NotAllowed")
+        ? "Izin kamera ditolak. Aktifkan izin kamera di browser."
+        : `Gagal scan: ${msg}`
+    );
+  }
+}, [data, showToast]);
+
+// Tutup scanner
+const stopScan = useCallback(() => {
+  readerRef.current = null;
+  if (streamRef.current) {
+    streamRef.current.getTracks().forEach((t) => t.stop());
+    streamRef.current = null;
+  }
+  setScanning(false);
+}, []);
+
+// Cleanup saat unmount
+useEffect(() => {
+  return () => { stopScan(); };
+}, [stopScan]);
 
   const processIncomingPayments = useCallback(
     (rows: CashPendingItem[]) => {
@@ -310,9 +384,29 @@ export default function PembayaranCashPage() {
           </p>
         </div>
 
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
         <button
-          onClick={() => requestNotificationPermission()}
-          style={{
+            onClick={startScan}
+            style={{
+            padding: "10px 16px",
+            borderRadius: 10,
+            border: "1px solid rgba(74,222,128,0.3)",
+            background: "rgba(74,222,128,0.08)",
+            color: "#4ade80",
+            fontSize: 12.5,
+            fontWeight: 700,
+            cursor: "pointer",
+            display: "flex",
+            alignItems: "center",
+            gap: 6,
+            }}
+        >
+            📷 Scan QR Pelanggan
+        </button>
+
+        <button
+            onClick={requestNotificationPermission}
+            style={{
             padding: "10px 14px",
             borderRadius: 10,
             border: "1px solid rgba(159,110,245,0.25)",
@@ -321,10 +415,11 @@ export default function PembayaranCashPage() {
             fontSize: 12.5,
             fontWeight: 700,
             cursor: "pointer",
-          }}
+            }}
         >
-          Aktifkan Notifikasi Browser
+            Aktifkan Notifikasi
         </button>
+        </div>
       </div>
 
       <div style={panelStyle}>
@@ -436,6 +531,136 @@ export default function PembayaranCashPage() {
           </div>
         )}
       </div>
+
+      {scanning && (
+  <div
+    style={{
+      position: "fixed",
+      inset: 0,
+      zIndex: 250,
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      background: "rgba(0,0,0,0.85)",
+      backdropFilter: "blur(10px)",
+      padding: 16,
+    }}
+  >
+    <div
+      style={{
+        width: "min(480px, 96vw)",
+        background: "#160d2e",
+        border: "1px solid rgba(74,222,128,0.25)",
+        borderRadius: 20,
+        overflow: "hidden",
+        boxShadow: "0 22px 40px rgba(0,0,0,0.4)",
+      }}
+    >
+      {/* Header */}
+      <div
+        style={{
+          padding: "18px 20px",
+          borderBottom: "1px solid rgba(159,110,245,0.14)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+        }}
+      >
+        <div>
+          <h2 style={{ margin: 0, color: "#f0eaff", fontSize: 18, fontWeight: 800 }}>
+            Scan QR Pelanggan
+          </h2>
+          <p style={{ margin: "4px 0 0", color: "#9b8ec4", fontSize: 12.5 }}>
+            Arahkan kamera ke QR Code di HP pelanggan
+          </p>
+        </div>
+        <button
+          onClick={stopScan}
+          style={{
+            width: 34,
+            height: 34,
+            borderRadius: 10,
+            border: "1px solid rgba(159,110,245,0.18)",
+            background: "rgba(255,255,255,0.04)",
+            color: "#c9aff5",
+            fontSize: 18,
+            cursor: "pointer",
+          }}
+        >
+          ×
+        </button>
+      </div>
+
+      {/* Viewfinder */}
+      <div style={{ position: "relative", background: "#000" }}>
+        <video
+          ref={videoRef}
+          style={{
+            width: "100%",
+            aspectRatio: "1 / 1",
+            objectFit: "cover",
+            display: "block",
+          }}
+          muted
+          playsInline
+        />
+
+        {/* Overlay crosshair */}
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            pointerEvents: "none",
+          }}
+        >
+          <div
+            style={{
+              width: 200,
+              height: 200,
+              border: "2px solid #4ade80",
+              borderRadius: 16,
+              boxShadow: "0 0 0 9999px rgba(0,0,0,0.45)",
+            }}
+          />
+        </div>
+
+        {/* Scanning bar animasi */}
+        <style>{`
+          @keyframes scanline {
+            0%   { top: 20%; }
+            50%  { top: 75%; }
+            100% { top: 20%; }
+          }
+          .scan-bar {
+            position: absolute;
+            left: calc(50% - 100px);
+            width: 200px;
+            height: 2px;
+            background: #4ade80;
+            animation: scanline 1.8s ease-in-out infinite;
+            border-radius: 2px;
+            box-shadow: 0 0 8px #4ade80;
+          }
+        `}</style>
+        <div className="scan-bar" />
+      </div>
+
+      {/* Footer */}
+      <div style={{ padding: "14px 20px", textAlign: "center" }}>
+        {scanError ? (
+          <p style={{ margin: 0, color: "#f87171", fontSize: 13 }}>{scanError}</p>
+        ) : (
+          <p style={{ margin: 0, color: "#9b8ec4", fontSize: 13 }}>
+            Mendeteksi QR Code...
+          </p>
+        )}
+      </div>
+    </div>
+  </div>
+)}
 
       {selected && (
         <ResponsiveModalShell
