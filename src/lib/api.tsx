@@ -1,5 +1,5 @@
 
-const BASE_URL = "http://192.168.21.173:8000/api";
+const BASE_URL = "http://192.168.40.147:8000/api";
 
 // ===== AUTH =====
 export type LoginPayload = {

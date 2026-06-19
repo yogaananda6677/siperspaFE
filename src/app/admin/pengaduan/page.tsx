@@ -762,7 +762,7 @@ export default function AdminPengaduanPage() {
 
 function DetailContent({ item }: { item: PengaduanItem }) {
   const imageUrl = item.foto_bukti
-    ? `http://192.168.20.226:8000/storage/${item.foto_bukti}`
+    ? `http://192.168.40.147:8000/storage/${item.foto_bukti}`
     : null;
 
   return (
