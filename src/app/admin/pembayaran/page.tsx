@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-
+import { DecodeHintType, BarcodeFormat } from "@zxing/library";
 import { BrowserQRCodeReader } from "@zxing/browser";
 import {
   getCashPendingPayments,
@@ -9,7 +9,11 @@ import {
   type CashPendingItem,
 } from "@/lib/api";
 
-
+declare global {
+  interface Window {
+    __scanTimeout?: NodeJS.Timeout;
+  }
+}
 
 const formatRupiah = (n: number) =>
   new Intl.NumberFormat("id-ID", {
@@ -94,6 +98,7 @@ const [scanError, setScanError]       = useState<string | null>(null);
 const videoRef                         = useRef<HTMLVideoElement>(null);
 const readerRef                        = useRef<BrowserQRCodeReader | null>(null);
 const streamRef                        = useRef<MediaStream | null>(null);
+const controlsRef = useRef<any>(null);
   const showToast = useCallback(
     (msg: string, type: "success" | "error" | "info" = "success") => {
       setToast({ msg, type });
@@ -121,64 +126,113 @@ const streamRef                        = useRef<MediaStream | null>(null);
     });
   }, []);
 
-  const startScan = useCallback(async () => {
+  const [scanResult, setScanResult] = useState<string | null>(null);
+const isScanningRef = useRef(false); // pengganti `scanning` di closure agar selalu up-to-date
+
+const startScan = useCallback(async () => {
   setScanError(null);
   setScanning(true);
+  isScanningRef.current = true;
+  setScanResult(null);
 
   try {
+    // ⬇️ batasi resolusi supaya decode lebih cepat & fokus lebih stabil
     const stream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: "environment" },
+      video: {
+        facingMode: "environment",
+        width: { ideal: 640 },
+        height: { ideal: 640 },
+        advanced: [{ focusMode: "continuous" } as any],
+      },
     });
     streamRef.current = stream;
 
-    // Tunggu video element mount
-    await new Promise<void>((res) => setTimeout(res, 150));
+    if (!videoRef.current) {
+      setScanError("Video element tidak ditemukan");
+      return;
+    }
 
-    if (!videoRef.current) return;
     videoRef.current.srcObject = stream;
     await videoRef.current.play();
 
-    const reader = new BrowserQRCodeReader();
+    // ⬇️ hints: fokus hanya ke QR_CODE, skip format lain biar lebih cepat
+    const hints = new Map();
+    hints.set(DecodeHintType.POSSIBLE_FORMATS, [BarcodeFormat.QR_CODE]);
+    hints.set(DecodeHintType.TRY_HARDER, false); // false = lebih cepat, kurang akurat di kondisi sulit
+
+    const reader = new BrowserQRCodeReader(hints, {
+      delayBetweenScanAttempts: 150, // default ~500ms, dipercepat
+      delayBetweenScanSuccess: 500,
+    } as any);
     readerRef.current = reader;
 
-    // Decode terus-menerus sampai dapat hasil
-    const result = await reader.decodeOnceFromVideoElement(videoRef.current);
-    const scannedId = result.getText().trim();
+    reader.decodeFromVideoElement(videoRef.current, (result, error, controls) => {
+          controlsRef.current = controls
+      if (result) {
+        const scannedId = result.getText().trim();
+        setScanResult(scannedId);
 
-    stopScan();
+        controls.stop();
+        stopScan();
 
-    // Cari item di data berdasarkan ID yang di-scan
-    const found = data.find(
-      (item) => String(item.id_transaksi) === scannedId
-    );
+        const found = data.find((item) => String(item.id_transaksi) === scannedId);
+        if (found) {
+          setSelected(found);
+          showToast(`✅ ID #${scannedId} ditemukan`, "success");
+        } else {
+          showToast(`❌ ID #${scannedId} tidak ditemukan`, "error");
+        }
+      }
+    });
 
-    if (found) {
-      setSelected(found);     // buka modal konfirmasi langsung
-    } else {
-      showToast(`ID transaksi #${scannedId} tidak ditemukan dalam antrian`, "error");
-    }
+    const timeoutId = setTimeout(() => {
+      if (isScanningRef.current) {           // ⬅️ pakai ref, bukan state basi
+        stopScan();
+        setScanError("⏱️ Scan timeout, coba lagi");
+      }
+    }, 10000);
 
+    window.__scanTimeout = timeoutId;
   } catch (e) {
     stopScan();
     const msg = e instanceof Error ? e.message : "Gagal mengakses kamera";
     setScanError(
       msg.includes("Permission") || msg.includes("NotAllowed")
-        ? "Izin kamera ditolak. Aktifkan izin kamera di browser."
-        : `Gagal scan: ${msg}`
+        ? "⚠️ Izin kamera ditolak."
+        : `❌ Gagal scan: ${msg}`
     );
   }
 }, [data, showToast]);
 
-// Tutup scanner
 const stopScan = useCallback(() => {
-  readerRef.current = null;
+  isScanningRef.current = false;
+
+  if (window.__scanTimeout) {
+    clearTimeout(window.__scanTimeout);
+    window.__scanTimeout = undefined;
+  }
+
+  // ⬇️ ganti readerRef.current.stop() jadi ini
+  if (controlsRef.current) {
+    try {
+      controlsRef.current.stop();
+    } catch {}
+    controlsRef.current = null;
+  }
+
+  readerRef.current = null; // reader sendiri nggak perlu di-stop, cukup dibuang referensinya
+
   if (streamRef.current) {
     streamRef.current.getTracks().forEach((t) => t.stop());
     streamRef.current = null;
   }
+
+  if (videoRef.current) {
+    videoRef.current.srcObject = null;
+  }
+
   setScanning(false);
 }, []);
-
 // Cleanup saat unmount
 useEffect(() => {
   return () => { stopScan(); };
